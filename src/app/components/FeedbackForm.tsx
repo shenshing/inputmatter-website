@@ -1,0 +1,289 @@
+import { useState, useRef, useEffect } from "react";
+import imgImage from "../../imports/FigmaDesignScreenshot20260605At15232PmPng/28357547b5ae9e92b039165b7889478b0aca3d3c.png";
+import imgImage1 from "../../imports/FigmaDesignScreenshot20260605At15232PmPng/f3562cb31554f0340112f60e7e18b99b2a0775e9.png";
+
+const API_URL = import.meta.env.VITE_API_URL as string;
+
+const categories = [
+  { id: "taste", label: "#Taste" },
+  { id: "service", label: "#Service" },
+  { id: "environment", label: "#Environment" },
+  { id: "other", label: "#Other" },
+];
+
+interface Shop {
+  id: number;
+  name: string;
+}
+
+export default function FeedbackForm() {
+  const [shops, setShops] = useState<Shop[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
+  const [shopInput, setShopInput] = useState("");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [description, setDescription] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/shops`)
+      .then((res) => res.json())
+      .then((data: Shop[]) => setShops(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleCategory = (categoryId: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : [...prev, categoryId],
+    );
+  };
+
+  const filteredShops = shops.filter((shop) =>
+    shop.name.toLowerCase().includes(shopInput.toLowerCase()),
+  );
+
+  const handleShopSelect = (shop: Shop) => {
+    setSelectedShop(shop);
+    setShopInput("");
+    setIsDropdownOpen(false);
+  };
+
+  const handleCancel = () => {
+    setDescription("");
+    setSelectedCategories([]);
+    setSelectedShop(null);
+    setShopInput("");
+    setSubmitError(null);
+    setSubmitSuccess(false);
+  };
+
+  const handleSubmit = async () => {
+    if (!description.trim()) {
+      setSubmitError("Please describe your feeling.");
+      return;
+    }
+    if (selectedCategories.length === 0) {
+      setSubmitError("Please select at least one category.");
+      return;
+    }
+    if (!selectedShop && shopInput.trim().length < 5) {
+      setSubmitError("Please choose a shop or type a shop name (at least 5 characters).");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const res = await fetch(`${API_URL}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: description.trim(),
+          categories: selectedCategories,
+          ...(selectedShop
+            ? { shopId: selectedShop.id }
+            : { shopName: shopInput.trim() }),
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Something went wrong. Please try again.");
+      }
+
+      setSubmitSuccess(true);
+      setDescription("");
+      setSelectedCategories([]);
+      setSelectedShop(null);
+      setShopInput("");
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="relative w-full min-h-screen bg-[#fbfcf7] overflow-hidden">
+      {/* Background Images */}
+      <div className="absolute inset-0 pointer-events-none hidden md:block">
+        <div className="absolute right-0 top-0 w-full md:w-[888px] h-full">
+          <img
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+            src={imgImage}
+          />
+          <img
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+            src={imgImage1}
+          />
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="relative z-10 max-w-[888px] mx-auto px-4 md:px-10 py-8 md:py-12">
+        {/* Header */}
+        <div className="mb-8 md:mb-12">
+          <h1 className="font-normal text-[#212120] text-2xl md:text-[45px] leading-normal md:leading-[49.727px]">
+            Share a thought and give us a chance.
+          </h1>
+          <p className="font-normal text-[#696b63] text-base md:text-[24px] leading-normal md:leading-[26.266px] mt-4">
+            This is a space for you to share any thoughts about us.
+          </p>
+        </div>
+
+        {/* Success banner */}
+        {submitSuccess && (
+          <div className="mb-6 bg-[#e8f5e9] border border-[#a5d6a7] rounded-[20px] px-6 py-4 text-[#2e7d32] text-base md:text-[18px]">
+            Thank you! Your feedback has been shared.
+          </div>
+        )}
+
+        {/* Description Text Area */}
+        <div className="mb-6 md:mb-8">
+          <div className="bg-[#efefef] rounded-[28px] p-6 md:p-8 relative hover:scale-105 hover:shadow-lg transition-all duration-200">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe your feeling..."
+              className="w-full bg-transparent border-none outline-none resize-none font-normal text-[#212120] placeholder:text-[#adadad] text-lg md:text-[22px] min-h-[120px] md:min-h-[140px]"
+              maxLength={500}
+            />
+            <div className="absolute bottom-4 right-6 text-[#7e7f78] text-sm md:text-[17px]">
+              {description.length}/500
+            </div>
+          </div>
+        </div>
+
+        {/* Category Tags */}
+        <div className="mb-6 md:mb-8">
+          <div className="bg-[#efefef] rounded-[29px] p-6 md:p-8 transition-all duration-200 hover:scale-105 hover:shadow-lg has-[button:hover]:scale-100 has-[button:hover]:shadow-none">
+            <p className="font-bold text-[#adadad] text-base md:text-[20px] mb-4 md:mb-6">
+              Select a category tag
+            </p>
+            <div className="flex flex-wrap gap-2 md:gap-3">
+              {categories.map((category) => {
+                const isSelected = selectedCategories.includes(category.id);
+                return (
+                  <button
+                    key={category.id}
+                    onClick={() => toggleCategory(category.id)}
+                    className={`
+                      ${isSelected ? "bg-[#e8a882] border-[#c8845a]" : "bg-[#fef7f2] border-[#f5d8c8]"}
+                      border-2 border-dashed rounded-[30px]
+                      px-4 md:px-6 py-2 md:py-3
+                      font-normal text-[#3a1834] text-base md:text-[24px]
+                      hover:scale-105 hover:shadow-lg transition-all duration-200
+                      whitespace-nowrap
+                    `}
+                  >
+                    {category.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Shop Name Input */}
+        <div className="mb-6 md:mb-8 relative" ref={dropdownRef}>
+          <div className="bg-[#efefef] rounded-[26px] px-6 md:px-8 py-5 md:py-6 relative hover:scale-105 hover:shadow-lg transition-all duration-200">
+            <input
+              type="text"
+              value={selectedShop ? selectedShop.name : shopInput}
+              onChange={(e) => {
+                setShopInput(e.target.value);
+                setSelectedShop(null);
+                setIsDropdownOpen(true);
+              }}
+              onFocus={() => setIsDropdownOpen(true)}
+              onKeyDown={(e) => e.key === 'Escape' && setIsDropdownOpen(false)}
+              placeholder="Choose the shop"
+              className="w-full bg-transparent border-none outline-none font-normal text-[#333] placeholder:text-[#aaa] text-lg md:text-[25px] pr-8"
+            />
+            <svg
+              className="absolute right-6 md:right-8 top-1/2 -translate-y-1/2 pointer-events-none"
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M5 7.5L10 12.5L15 7.5"
+                stroke="#aaa"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {isDropdownOpen && filteredShops.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-[20px] shadow-lg max-h-[240px] overflow-y-auto z-50">
+                {filteredShops.map((shop) => (
+                  <button
+                    key={shop.id}
+                    onClick={() => handleShopSelect(shop)}
+                    className="w-full text-left px-6 md:px-8 py-3 md:py-4 hover:bg-[#fef7f2] transition-colors font-normal text-[#333] text-base md:text-[20px] first:rounded-t-[20px] last:rounded-b-[20px]"
+                  >
+                    {shop.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <p className="font-bold text-[#b7b7b6] text-sm md:text-[20px] mt-3 md:mt-4 leading-normal md:leading-[22.344px]">
+            Examples: Tube Coffee (BKK), Brown Roastery TK
+          </p>
+          {!selectedShop && shopInput.trim().length >= 5 && (
+            <p className="text-[#ac7f5e] text-sm md:text-[16px] mt-2 leading-normal">
+              Can&apos;t find your shop? &quot;{shopInput.trim()}&quot; will be saved as a new shop name.
+            </p>
+          )}
+        </div>
+
+        {/* Error message */}
+        {submitError && (
+          <p className="mb-4 text-red-500 text-sm md:text-[17px] px-2">
+            {submitError}
+          </p>
+        )}
+
+        {/* Action Buttons */}
+        <div className="space-y-3 md:space-y-4">
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="w-full bg-[#ac7f5e] rounded-[26px] py-5 md:py-6 font-bold text-[#33152e] text-lg md:text-[23px] hover:scale-105 hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            {isSubmitting ? "Sharing..." : "Shared"}
+          </button>
+          <button
+            onClick={handleCancel}
+            className="w-full bg-[#fbfcf7] border border-[#9b9b9a] rounded-[29px] py-5 md:py-6 font-bold text-[#a2a2a1] text-lg md:text-[25px] hover:scale-105 hover:shadow-lg transition-all duration-200"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
