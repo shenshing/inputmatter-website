@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Link } from "react-router";
+import { QRCodeCanvas } from "qrcode.react";
 import {
   PieChart, Pie, Cell,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -7,7 +8,9 @@ import {
 import {
   Store, MessageSquare, TrendingUp, TrendingDown, Minus,
   ArrowLeft, RefreshCw, Utensils, Users, Leaf, HelpCircle, ChevronDown,
+  QrCode, Copy, Share2, X, Check, Info,
 } from "lucide-react";
+import { Tooltip as UITooltip, TooltipTrigger as UITooltipTrigger, TooltipContent as UITooltipContent } from "../components/ui/tooltip";
 import {
   format, parseISO, formatDistanceToNow,
   subDays, isAfter, startOfMonth, endOfMonth, subMonths, isWithinInterval,
@@ -217,6 +220,156 @@ function PlanChanger({
   );
 }
 
+// ── QR Code Modal ─────────────────────────────────────────────────────────────
+
+function QRCodeModal({ shop, onClose }: { shop: Shop; onClose: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  const shopUrl = `${window.location.origin}/?shop=${encodeURIComponent(shop.name)}`;
+
+  async function copyUrl() {
+    await navigator.clipboard.writeText(shopUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function shareQR() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    try {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const file = new File([blob], `${shop.name}-qr.png`, { type: "image/png" });
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: `${shop.name} — Feedback QR`, url: shopUrl });
+        } else {
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = `${shop.name}-qr.png`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+        }
+      }, "image/png");
+    } catch {
+      // user cancelled share
+    }
+  }
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const categories = [
+    { id: "taste", label: "#Taste" },
+    { id: "service", label: "#Service" },
+    { id: "environment", label: "#Environment" },
+    { id: "other", label: "#Other" },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-[#fbfcf7] rounded-[28px] shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-[#fef7f2] rounded-[12px] flex items-center justify-center">
+              <QrCode className="w-4.5 h-4.5 text-[#ac7f5e]" style={{ width: 18, height: 18 }} />
+            </div>
+            <div>
+              <h2 className="text-[#212120] font-semibold text-base leading-tight">QR Code</h2>
+              <p className="text-[#adadad] text-xs">{shop.name}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-[#efefef] flex items-center justify-center text-[#696b63] hover:bg-[#e4e4e0] transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-6 pb-6 space-y-4">
+
+          {/* Shop name card — same style as FeedbackForm shop input */}
+          <div className="bg-[#efefef] rounded-[26px] px-6 py-4">
+            <p className="text-[#adadad] text-xs mb-1">Shop</p>
+            <p className="text-[#212120] text-lg font-normal leading-snug">{shop.name}</p>
+          </div>
+
+          {/* Category tags preview — same style as FeedbackForm */}
+          <div className="bg-[#efefef] rounded-[26px] px-6 py-4">
+            <p className="font-bold text-[#adadad] text-xs mb-3">Select a category tag</p>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((cat) => (
+                <span
+                  key={cat.id}
+                  className="bg-[#fef7f2] border-2 border-dashed border-[#f5d8c8] rounded-[30px] px-4 py-1.5 text-[#3a1834] text-sm"
+                >
+                  {cat.label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* QR Code */}
+          <div className="bg-white rounded-[24px] p-6 flex flex-col items-center gap-4 border border-[#e8e8e4]">
+            <QRCodeCanvas
+              ref={canvasRef}
+              value={shopUrl}
+              size={180}
+              bgColor="#ffffff"
+              fgColor="#212120"
+              level="M"
+              style={{ borderRadius: 8 }}
+            />
+            <div className="flex items-center justify-center gap-1.5">
+              <p className="text-[#adadad] text-[11px] text-center">
+                Scan to leave feedback for <span className="text-[#212120] font-medium">{shop.name}</span>
+              </p>
+              <UITooltip>
+                <UITooltipTrigger asChild>
+                  <Info className="w-3 h-3 text-[#adadad] shrink-0 cursor-default" />
+                </UITooltipTrigger>
+                <UITooltipContent side="top" className="max-w-[180px] text-center text-[11px] leading-snug">
+                  Shop name is pre-filled — customers just pick a tag and submit
+                </UITooltipContent>
+              </UITooltip>
+            </div>
+          </div>
+
+          {/* URL row */}
+          <div className="flex items-center gap-2 bg-[#efefef] rounded-[18px] px-4 py-3">
+            <p className="flex-1 text-[#696b63] text-xs truncate">{shopUrl}</p>
+            <button
+              onClick={copyUrl}
+              className="shrink-0 flex items-center gap-1 bg-white rounded-[12px] px-3 py-1.5 text-xs font-medium text-[#212120] hover:bg-[#f5f4f3] transition-colors shadow-sm"
+            >
+              {copied ? <Check className="w-3 h-3 text-[#5e9e6a]" /> : <Copy className="w-3 h-3" />}
+              {copied ? "Copied!" : "Copy URL"}
+            </button>
+          </div>
+
+          {/* Share button */}
+          <button
+            onClick={shareQR}
+            className="w-full flex items-center justify-center gap-2 bg-[#ac7f5e] hover:bg-[#9a6f4e] text-white rounded-[22px] py-4 font-bold text-base transition-all hover:scale-[1.02] hover:shadow-lg active:scale-100"
+          >
+            <Share2 className="w-4 h-4" />
+            Share QR
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Register shop form ────────────────────────────────────────────────────────
 
 function RegisterShopForm({ onRegistered }: { onRegistered: (shop: Shop) => void }) {
@@ -390,6 +543,7 @@ function ShopDashboardContent({
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState<string | null>(null);
   const [preciseDates, setPreciseDates]     = useState<Set<string>>(new Set());
+  const [showQR, setShowQR]                 = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -607,6 +761,19 @@ function ShopDashboardContent({
           </button>
         </div>
       </div>
+
+      {/* Floating QR button — bottom-right, same position as "My Shop" on public page */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <button
+          onClick={() => setShowQR(true)}
+          className="flex items-center gap-2 bg-[#ac7f5e] text-white text-sm font-medium rounded-full px-4 py-2.5 shadow-lg hover:bg-[#9a6f4e] transition-colors"
+        >
+          <QrCode className="w-4 h-4" />
+          <span>QR Code</span>
+        </button>
+      </div>
+
+      {showQR && <QRCodeModal shop={shop} onClose={() => setShowQR(false)} />}
 
       <div className="px-6 md:px-10 py-8 max-w-screen-xl mx-auto space-y-6">
 

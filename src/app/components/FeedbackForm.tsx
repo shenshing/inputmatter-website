@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router";
 import imgImage from "../../imports/FigmaDesignScreenshot20260605At15232PmPng/28357547b5ae9e92b039165b7889478b0aca3d3c.png";
 import imgImage1 from "../../imports/FigmaDesignScreenshot20260605At15232PmPng/f3562cb31554f0340112f60e7e18b99b2a0775e9.png";
 
@@ -17,6 +18,7 @@ interface Shop {
 }
 
 export default function FeedbackForm() {
+  const [searchParams] = useSearchParams();
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -31,8 +33,18 @@ export default function FeedbackForm() {
   useEffect(() => {
     fetch(`${API_URL}/shops`)
       .then((res) => res.json())
-      .then((data: Shop[]) => setShops(data))
+      .then((data: Shop[]) => {
+        setShops(data);
+        const preselect = searchParams.get("shop");
+        if (preselect) {
+          const match = data.find(
+            (s: Shop) => s.name.toLowerCase() === preselect.toLowerCase(),
+          );
+          if (match) setSelectedShop(match);
+        }
+      })
       .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -147,7 +159,7 @@ export default function FeedbackForm() {
             Share a thought and give us a chance.
           </h1>
           <p className="font-normal text-[#696b63] text-base md:text-[24px] leading-normal md:leading-[26.266px] mt-4">
-            This is a space for you to share any thoughts about us.
+            Leave feedback for any shop or restaurant — owners read every message.
           </p>
         </div>
 
