@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { BrowserRouter, Routes, Route, Link } from "react-router";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -127,6 +128,7 @@ export default function App() {
             />
           </Routes>
         </BrowserRouter>
+        <Analytics />
       </AuthProvider>
     </GoogleOAuthProvider>
   );
