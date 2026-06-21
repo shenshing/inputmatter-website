@@ -37,7 +37,7 @@ interface Feedback {
   created_at: string;
 }
 
-type Period = "7d" | "30d" | "90d" | "all";
+type Period = "7d" | "30d" | "90d" | "1y" | "2y" | "3y" | "4y" | "5y" | "all";
 
 const CATEGORIES = ["taste", "service", "environment", "other"] as const;
 
@@ -52,13 +52,21 @@ const PERIOD_OPTIONS: { value: Period; label: string }[] = [
   { value: "7d",  label: "7 days"   },
   { value: "30d", label: "30 days"  },
   { value: "90d", label: "3 months" },
+  { value: "1y",  label: "1 year"   },
+  { value: "2y",  label: "2 years"  },
+  { value: "3y",  label: "3 years"  },
+  { value: "4y",  label: "4 years"  },
+  { value: "5y",  label: "5 years"  },
   { value: "all", label: "All time" },
 ];
 
 function cutoffDate(period: Period): Date | null {
   if (period === "all") return null;
-  const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
-  return subDays(new Date(), days);
+  if (period === "7d")  return subDays(new Date(), 7);
+  if (period === "30d") return subDays(new Date(), 30);
+  if (period === "90d") return subDays(new Date(), 90);
+  const years = parseInt(period, 10);
+  return subDays(new Date(), years * 365);
 }
 
 function applyPeriod(feedback: Feedback[], period: Period): Feedback[] {

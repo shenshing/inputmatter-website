@@ -12,6 +12,7 @@ import {
 import {
   format, subWeeks, startOfWeek, endOfWeek,
   isWithinInterval, parseISO, formatDistanceToNow,
+  isAfter, subDays,
 } from "date-fns";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
@@ -93,6 +94,29 @@ const STATUS_OPTIONS: ContactStatus[] = [
 
 type Tab = "feedback" | "contacts";
 
+type Period = "7d" | "30d" | "90d" | "1y" | "2y" | "3y" | "4y" | "5y" | "all";
+
+const PERIOD_OPTIONS: { value: Period; label: string }[] = [
+  { value: "7d",  label: "7 days"   },
+  { value: "30d", label: "30 days"  },
+  { value: "90d", label: "3 months" },
+  { value: "1y",  label: "1 year"   },
+  { value: "2y",  label: "2 years"  },
+  { value: "3y",  label: "3 years"  },
+  { value: "4y",  label: "4 years"  },
+  { value: "5y",  label: "5 years"  },
+  { value: "all", label: "All time" },
+];
+
+function cutoffDate(period: Period): Date | null {
+  if (period === "all") return null;
+  if (period === "7d")  return subDays(new Date(), 7);
+  if (period === "30d") return subDays(new Date(), 30);
+  if (period === "90d") return subDays(new Date(), 90);
+  const years = parseInt(period, 10);
+  return subDays(new Date(), years * 365);
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -102,6 +126,7 @@ export default function Dashboard() {
   const [allFeedback, setAllFeedback] = useState<Feedback[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShopId, setSelectedShopId] = useState<string>("all");
+  const [selectedPeriod, setSelectedPeriod] = useState<Period>("all");
   const [feedbackLoading, setFeedbackLoading] = useState(true);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [preciseDates, setPreciseDates] = useState<Set<string>>(new Set());
@@ -164,9 +189,16 @@ export default function Dashboard() {
   // ── Feedback derived data ───────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
-    if (selectedShopId === "all") return allFeedback;
-    return allFeedback.filter((f) => String(f.shop?.id) === selectedShopId);
-  }, [allFeedback, selectedShopId]);
+    const cutoff = cutoffDate(selectedPeriod);
+    return allFeedback.filter((f) => {
+      if (selectedShopId !== "all" && String(f.shop?.id) !== selectedShopId) return false;
+      if (cutoff) {
+        try { return isAfter(parseISO(f.created_at), cutoff); }
+        catch { return false; }
+      }
+      return true;
+    });
+  }, [allFeedback, selectedShopId, selectedPeriod]);
 
   const totalCount = filtered.length;
 
@@ -253,6 +285,18 @@ export default function Dashboard() {
                 </select>
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#adadad] text-xs">▾</span>
               </div>
+              <div className="relative">
+                <select
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value as Period)}
+                  className="bg-[#efefef] rounded-[18px] pl-4 pr-8 py-2 text-[#212120] text-sm border-none outline-none cursor-pointer appearance-none"
+                >
+                  {PERIOD_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#adadad] text-xs">▾</span>
+              </div>
               <button
                 onClick={fetchFeedback}
                 className="bg-[#efefef] rounded-[18px] p-2.5 text-[#696b63] hover:text-[#212120] hover:bg-[#e4e4e0] transition-colors"
@@ -304,6 +348,7 @@ export default function Dashboard() {
           onRetry={fetchFeedback}
           totalCount={totalCount}
           activeShopsCount={activeShopsCount}
+          totalShopsCount={shops.length}
           topCategory={topCategory}
           latestFeedback={latestFeedback}
           categoryData={categoryData}
@@ -335,7 +380,7 @@ export default function Dashboard() {
 // ── Feedback tab ──────────────────────────────────────────────────────────────
 
 function FeedbackTab({
-  loading, error, onRetry, totalCount, activeShopsCount, topCategory,
+  loading, error, onRetry, totalCount, activeShopsCount, totalShopsCount, topCategory,
   latestFeedback, categoryData, weeklyData, recentFeedback, preciseDates, togglePreciseDate,
 }: {
   loading: boolean;
@@ -343,6 +388,7 @@ function FeedbackTab({
   onRetry: () => void;
   totalCount: number;
   activeShopsCount: number;
+  totalShopsCount: number;
   topCategory: { name: string; count: number } | null;
   latestFeedback: Feedback | null;
   categoryData: { name: string; count: number; fill: string }[];
@@ -377,7 +423,7 @@ function FeedbackTab({
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard icon={<MessageSquare className="w-5 h-5 text-[#ac7f5e]" />} iconBg="bg-[#fef7f2]" label="Total Feedback" value={totalCount} />
-        <KpiCard icon={<Store className="w-5 h-5 text-[#696b63]" />} iconBg="bg-[#f2f4f2]" label="Active Shops" value={activeShopsCount} />
+        <KpiCard icon={<Store className="w-5 h-5 text-[#696b63]" />} iconBg="bg-[#f2f4f2]" label="Active Shops" value={`${activeShopsCount}/${totalShopsCount}`} />
         <KpiCard
           icon={<Tag className="w-5 h-5 text-[#ac7f5e]" />} iconBg="bg-[#fef7f2]"
           label="Top Category" value={<span className="capitalize">{topCategory?.name ?? "—"}</span>}
