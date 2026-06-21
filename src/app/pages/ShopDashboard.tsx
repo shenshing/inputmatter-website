@@ -380,21 +380,43 @@ function QRCodeModal({ shop, onClose }: { shop: Shop; onClose: () => void }) {
 
 // ── Register shop form ────────────────────────────────────────────────────────
 
+const GOOGLE_MAP_PREFIX = "https://maps.app.goo.gl/";
+
 function RegisterShopForm({ onRegistered }: { onRegistered: (shop: Shop) => void }) {
   const [name, setName] = useState("");
+  const [googleMapUrl, setGoogleMapUrl] = useState("");
+  const [googleMapUrlError, setGoogleMapUrlError] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("free");
   const [error, setError] = useState<string | null>(null);
   const [showDuplicatePopup, setShowDuplicatePopup] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  function validateGoogleMapUrl(value: string): string | null {
+    if (!value) return null;
+    if (!value.startsWith(GOOGLE_MAP_PREFIX)) {
+      return `URL must start with ${GOOGLE_MAP_PREFIX}`;
+    }
+    return null;
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+
+    const urlErr = validateGoogleMapUrl(googleMapUrl);
+    if (urlErr) {
+      setGoogleMapUrlError(urlErr);
+      return;
+    }
+
     setLoading(true);
     try {
+      const body: Record<string, string> = { name, plan: selectedPlan };
+      if (googleMapUrl) body.google_map_url = googleMapUrl;
+
       const shop = await apiFetch<Shop>("/shops", {
         method: "POST",
-        body: JSON.stringify({ name, plan: selectedPlan }),
+        body: JSON.stringify(body),
       });
       onRegistered(shop);
     } catch (err: any) {
@@ -446,6 +468,26 @@ function RegisterShopForm({ onRegistered }: { onRegistered: (shop: Shop) => void
                 minLength={2}
                 maxLength={100}
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="google-map-url">
+                Google Maps URL{" "}
+                <span className="text-[#adadad] font-normal">(optional)</span>
+              </Label>
+              <Input
+                id="google-map-url"
+                type="url"
+                placeholder="https://maps.app.goo.gl/..."
+                value={googleMapUrl}
+                onChange={(e) => {
+                  setGoogleMapUrl(e.target.value);
+                  setGoogleMapUrlError(validateGoogleMapUrl(e.target.value));
+                }}
+              />
+              {googleMapUrlError && (
+                <p className="text-xs text-red-600">{googleMapUrlError}</p>
+              )}
             </div>
 
             {/* Plan selector */}
