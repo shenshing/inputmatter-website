@@ -57,11 +57,13 @@ export default function FeedbackForm() {
     function tryTelegramParam() {
       const raw = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
       if (raw) {
-        const name = decodeURIComponent(raw);
+        // startapp only allows A-Za-z0-9_- so spaces were encoded as _
+        // match by applying the same sanitization to each shop name
         const match = shops.find(
-          (s) => s.name.toLowerCase() === name.toLowerCase(),
+          (s) => s.name.replace(/[^A-Za-z0-9_-]/g, '_').toLowerCase() === raw.toLowerCase(),
         );
         if (match) { setSelectedShop(match); return; }
+        return; // param received but no match — stop retrying
       }
       if (++attempts < 10) setTimeout(tryTelegramParam, 150);
     }
