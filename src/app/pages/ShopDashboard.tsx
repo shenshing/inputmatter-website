@@ -8,7 +8,7 @@ import {
 import {
   Store, MessageSquare, TrendingUp, TrendingDown, Minus,
   ArrowLeft, RefreshCw, Utensils, Users, Leaf, HelpCircle, ChevronDown,
-  QrCode, Copy, Share2, X, Check, Info,
+  QrCode, Copy, Share2, X, Check, Info, Send,
 } from "lucide-react";
 import { Tooltip as UITooltip, TooltipTrigger as UITooltipTrigger, TooltipContent as UITooltipContent } from "../components/ui/tooltip";
 import {
@@ -230,14 +230,21 @@ function PlanChanger({
 
 // ── QR Code Modal ─────────────────────────────────────────────────────────────
 
+const TELEGRAM_MINI_APP_BASE = "https://t.me/inputmatter_public_feedback_bot/inputmatter";
+
+type QRMode = "web" | "telegram";
+
 function QRCodeModal({ shop, onClose }: { shop: Shop; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [copied, setCopied] = useState(false);
+  const [mode, setMode] = useState<QRMode>("web");
 
-  const shopUrl = `${window.location.origin}/?shop=${encodeURIComponent(shop.name)}`;
+  const activeUrl = mode === "telegram"
+    ? `${TELEGRAM_MINI_APP_BASE}?startapp=${encodeURIComponent(shop.name)}`
+    : `${window.location.origin}/?shop=${encodeURIComponent(shop.name)}`;
 
   async function copyUrl() {
-    await navigator.clipboard.writeText(shopUrl);
+    await navigator.clipboard.writeText(activeUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -250,7 +257,7 @@ function QRCodeModal({ shop, onClose }: { shop: Shop; onClose: () => void }) {
         if (!blob) return;
         const file = new File([blob], `${shop.name}-qr.png`, { type: "image/png" });
         if (navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: `${shop.name} — Feedback QR`, url: shopUrl });
+          await navigator.share({ files: [file], title: `${shop.name} — Feedback QR`, url: activeUrl });
         } else {
           const a = document.createElement("a");
           a.href = URL.createObjectURL(blob);
@@ -305,6 +312,32 @@ function QRCodeModal({ shop, onClose }: { shop: Shop; onClose: () => void }) {
 
         <div className="px-6 pb-6 space-y-4">
 
+          {/* Mode tab toggle */}
+          <div className="flex bg-[#efefef] rounded-[18px] p-1 gap-1">
+            <button
+              onClick={() => { setMode("web"); setCopied(false); }}
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-[14px] py-2 text-xs font-medium transition-all ${
+                mode === "web"
+                  ? "bg-white text-[#212120] shadow-sm"
+                  : "text-[#696b63] hover:text-[#212120]"
+              }`}
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              Web
+            </button>
+            <button
+              onClick={() => { setMode("telegram"); setCopied(false); }}
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-[14px] py-2 text-xs font-medium transition-all ${
+                mode === "telegram"
+                  ? "bg-white text-[#212120] shadow-sm"
+                  : "text-[#696b63] hover:text-[#212120]"
+              }`}
+            >
+              <Send className="w-3.5 h-3.5" />
+              Telegram
+            </button>
+          </div>
+
           {/* Shop name card — same style as FeedbackForm shop input */}
           <div className="bg-[#efefef] rounded-[26px] px-6 py-4">
             <p className="text-[#adadad] text-xs mb-1">Shop</p>
@@ -330,7 +363,7 @@ function QRCodeModal({ shop, onClose }: { shop: Shop; onClose: () => void }) {
           <div className="bg-white rounded-[24px] p-6 flex flex-col items-center gap-4 border border-[#e8e8e4]">
             <QRCodeCanvas
               ref={canvasRef}
-              value={shopUrl}
+              value={activeUrl}
               size={180}
               bgColor="#ffffff"
               fgColor="#212120"
@@ -339,14 +372,20 @@ function QRCodeModal({ shop, onClose }: { shop: Shop; onClose: () => void }) {
             />
             <div className="flex items-center justify-center gap-1.5">
               <p className="text-[#adadad] text-[11px] text-center">
-                Scan to leave feedback for <span className="text-[#212120] font-medium">{shop.name}</span>
+                {mode === "telegram"
+                  ? <>Scan to open Telegram Mini App for <span className="text-[#212120] font-medium">{shop.name}</span></>
+                  : <>Scan to leave feedback for <span className="text-[#212120] font-medium">{shop.name}</span></>
+                }
               </p>
               <UITooltip>
                 <UITooltipTrigger asChild>
                   <Info className="w-3 h-3 text-[#adadad] shrink-0 cursor-default" />
                 </UITooltipTrigger>
                 <UITooltipContent side="top" className="max-w-[180px] text-center text-[11px] leading-snug">
-                  Shop name is pre-filled — customers just pick a tag and submit
+                  {mode === "telegram"
+                    ? "Opens the feedback form inside Telegram — shop is pre-filled"
+                    : "Shop name is pre-filled — customers just pick a tag and submit"
+                  }
                 </UITooltipContent>
               </UITooltip>
             </div>
@@ -354,7 +393,7 @@ function QRCodeModal({ shop, onClose }: { shop: Shop; onClose: () => void }) {
 
           {/* URL row */}
           <div className="flex items-center gap-2 bg-[#efefef] rounded-[18px] px-4 py-3">
-            <p className="flex-1 text-[#696b63] text-xs truncate">{shopUrl}</p>
+            <p className="flex-1 text-[#696b63] text-xs truncate">{activeUrl}</p>
             <button
               onClick={copyUrl}
               className="shrink-0 flex items-center gap-1 bg-white rounded-[12px] px-3 py-1.5 text-xs font-medium text-[#212120] hover:bg-[#f5f4f3] transition-colors shadow-sm"

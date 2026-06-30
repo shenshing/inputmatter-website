@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { BrowserRouter, Routes, Route, Link } from "react-router";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { useTelegram } from "./hooks/useTelegram";
 import FeedbackForm from "./components/FeedbackForm";
 import Dashboard from "./pages/Dashboard";
 import ShopDashboard from "./pages/ShopDashboard";
@@ -137,13 +138,15 @@ export default function App() {
 function PublicHome() {
   const { user, logout } = useAuth();
   const [showAbout, setShowAbout] = useState(false);
+  const { isTelegram } = useTelegram();
+
 
   return (
     <div className="relative size-full">
       <FeedbackForm />
 
-      {/* Floating nav — bottom-right */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+      {/* Floating nav — hidden inside Telegram Mini App */}
+      {!isTelegram && <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
         {/* Contact Us — always visible */}
         <Link
           to="/contact"
@@ -199,7 +202,7 @@ function PublicHome() {
           <span>💡</span>
           <span>About Us</span>
         </button>
-      </div>
+      </div>}
 
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
     </div>
