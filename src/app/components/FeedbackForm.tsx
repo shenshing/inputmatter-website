@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router";
+import { useTelegram } from "../hooks/useTelegram";
 import imgImage from "../../imports/FigmaDesignScreenshot20260605At15232PmPng/28357547b5ae9e92b039165b7889478b0aca3d3c.png";
 import imgImage1 from "../../imports/FigmaDesignScreenshot20260605At15232PmPng/f3562cb31554f0340112f60e7e18b99b2a0775e9.png";
 
@@ -19,6 +20,7 @@ interface Shop {
 
 export default function FeedbackForm() {
   const [searchParams] = useSearchParams();
+  const { isTelegram, webApp } = useTelegram();
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
@@ -29,23 +31,43 @@ export default function FeedbackForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const handleSubmitRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     fetch(`${API_URL}/shops`)
       .then((res) => res.json())
-      .then((data: Shop[]) => {
-        setShops(data);
-        const preselect = searchParams.get("shop");
-        if (preselect) {
-          const match = data.find(
-            (s: Shop) => s.name.toLowerCase() === preselect.toLowerCase(),
-          );
-          if (match) setSelectedShop(match);
-        }
-      })
+      .then((data: Shop[]) => setShops(data))
       .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Pre-selection runs after shops load. Telegram's native bridge sends
+  // start_param asynchronously, so retry a few times to wait for it.
+  useEffect(() => {
+    if (shops.length === 0) return;
+
+    const urlShop = searchParams.get("shop");
+    if (urlShop) {
+      const match = shops.find(
+        (s) => s.name.toLowerCase() === urlShop.toLowerCase(),
+      );
+      if (match) { setSelectedShop(match); return; }
+    }
+
+    let attempts = 0;
+    function tryTelegramParam() {
+      const raw = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+      if (raw) {
+        const name = decodeURIComponent(raw);
+        const match = shops.find(
+          (s) => s.name.toLowerCase() === name.toLowerCase(),
+        );
+        if (match) { setSelectedShop(match); return; }
+      }
+      if (++attempts < 10) setTimeout(tryTelegramParam, 150);
+    }
+    tryTelegramParam();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shops]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -59,6 +81,31 @@ export default function FeedbackForm() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    handleSubmitRef.current = handleSubmit;
+  });
+
+  useEffect(() => {
+    if (!isTelegram || !webApp) return;
+
+    webApp.ready();
+    webApp.expand();
+
+    const btn = webApp.MainButton;
+    btn.text = "Share";
+    btn.color = "#ac7f5e";
+    btn.textColor = "#33152e";
+
+    const handler = () => handleSubmitRef.current();
+    btn.show();
+    btn.onClick(handler);
+
+    return () => {
+      btn.offClick(handler);
+      btn.hide();
+    };
+  }, [isTelegram, webApp]);
 
   const toggleCategory = (categoryId: string) => {
     setSelectedCategories((prev) =>
@@ -103,6 +150,10 @@ export default function FeedbackForm() {
 
     setIsSubmitting(true);
     setSubmitError(null);
+    if (isTelegram && webApp) {
+      webApp.MainButton.showProgress(false);
+      webApp.MainButton.disable();
+    }
 
     try {
       const res = await fetch(`${API_URL}/feedback`, {
@@ -114,6 +165,7 @@ export default function FeedbackForm() {
           ...(selectedShop
             ? { shopId: selectedShop.id }
             : { shopName: shopInput.trim() }),
+          source: isTelegram ? "telegram" : "web",
         }),
       });
 
@@ -126,8 +178,18 @@ export default function FeedbackForm() {
       setSelectedCategories([]);
       setSelectedShop(null);
       setShopInput("");
+
+      if (isTelegram && webApp) {
+        webApp.MainButton.hideProgress();
+        webApp.MainButton.hide();
+        setTimeout(() => webApp.close(), 1500);
+      }
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Unexpected error.");
+      if (isTelegram && webApp) {
+        webApp.MainButton.hideProgress();
+        webApp.MainButton.enable();
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -152,7 +214,8 @@ export default function FeedbackForm() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 max-w-[888px] mx-auto px-4 md:px-10 py-8 md:py-12">
+      <div className={`relative z-10 max-w-[888px] mx-auto px-4 md:px-10 py-8 md:py-12 ${isTelegram ? "pb-28" : ""}`}>
+
         {/* Header */}
         <div className="mb-8 md:mb-12">
           <h1 className="font-normal text-[#212120] text-2xl md:text-[45px] leading-normal md:leading-[49.727px]">
@@ -279,22 +342,24 @@ export default function FeedbackForm() {
           </p>
         )}
 
-        {/* Action Buttons */}
-        <div className="space-y-3 md:space-y-4">
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="w-full bg-[#ac7f5e] rounded-[26px] py-5 md:py-6 font-bold text-[#33152e] text-lg md:text-[23px] hover:scale-105 hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
-          >
-            {isSubmitting ? "Sharing..." : "Shared"}
-          </button>
-          <button
-            onClick={handleCancel}
-            className="w-full bg-[#fbfcf7] border border-[#9b9b9a] rounded-[29px] py-5 md:py-6 font-bold text-[#a2a2a1] text-lg md:text-[25px] hover:scale-105 hover:shadow-lg transition-all duration-200"
-          >
-            Cancel
-          </button>
-        </div>
+        {/* Action Buttons — hidden in Telegram (MainButton takes over) */}
+        {!isTelegram && (
+          <div className="space-y-3 md:space-y-4">
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="w-full bg-[#ac7f5e] rounded-[26px] py-5 md:py-6 font-bold text-[#33152e] text-lg md:text-[23px] hover:scale-105 hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              {isSubmitting ? "Sharing..." : "Shared"}
+            </button>
+            <button
+              onClick={handleCancel}
+              className="w-full bg-[#fbfcf7] border border-[#9b9b9a] rounded-[29px] py-5 md:py-6 font-bold text-[#a2a2a1] text-lg md:text-[25px] hover:scale-105 hover:shadow-lg transition-all duration-200"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
