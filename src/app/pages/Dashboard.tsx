@@ -29,6 +29,7 @@ interface Feedback {
   shop_name: string;
   shop: Shop | null;
   created_at: string;
+  source: string | null;
 }
 
 interface ContactSubmission {
@@ -201,6 +202,7 @@ export default function Dashboard() {
   }, [allFeedback, selectedShopId, selectedPeriod]);
 
   const totalCount = filtered.length;
+  const telegramCount = filtered.filter((f) => f.source === "telegram").length;
 
   const activeShopsCount = useMemo(() => {
     return new Set(filtered.map((f) => f.shop?.name ?? f.shop_name)).size;
@@ -347,6 +349,8 @@ export default function Dashboard() {
           error={feedbackError}
           onRetry={fetchFeedback}
           totalCount={totalCount}
+          telegramCount={telegramCount}
+          selectedPeriod={selectedPeriod}
           activeShopsCount={activeShopsCount}
           totalShopsCount={shops.length}
           topCategory={topCategory}
@@ -380,13 +384,15 @@ export default function Dashboard() {
 // ── Feedback tab ──────────────────────────────────────────────────────────────
 
 function FeedbackTab({
-  loading, error, onRetry, totalCount, activeShopsCount, totalShopsCount, topCategory,
+  loading, error, onRetry, totalCount, telegramCount, selectedPeriod, activeShopsCount, totalShopsCount, topCategory,
   latestFeedback, categoryData, weeklyData, recentFeedback, preciseDates, togglePreciseDate,
 }: {
   loading: boolean;
   error: string | null;
   onRetry: () => void;
   totalCount: number;
+  telegramCount: number;
+  selectedPeriod: Period;
   activeShopsCount: number;
   totalShopsCount: number;
   topCategory: { name: string; count: number } | null;
@@ -422,7 +428,12 @@ function FeedbackTab({
     <div className="px-6 md:px-10 py-8 space-y-6 max-w-screen-xl mx-auto">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard icon={<MessageSquare className="w-5 h-5 text-[#ac7f5e]" />} iconBg="bg-[#fef7f2]" label="Total Feedback" value={totalCount} />
+        <KpiCard
+          icon={<MessageSquare className="w-5 h-5 text-[#ac7f5e]" />} iconBg="bg-[#fef7f2]"
+          label={`Total Feedback · ${PERIOD_OPTIONS.find((o) => o.value === selectedPeriod)?.label ?? selectedPeriod}`}
+          value={totalCount}
+          sub={telegramCount > 0 ? `${telegramCount} from Telegram` : undefined}
+        />
         <KpiCard icon={<Store className="w-5 h-5 text-[#696b63]" />} iconBg="bg-[#f2f4f2]" label="Active Shops" value={`${activeShopsCount}/${totalShopsCount}`} />
         <KpiCard
           icon={<Tag className="w-5 h-5 text-[#ac7f5e]" />} iconBg="bg-[#fef7f2]"
@@ -491,14 +502,14 @@ function FeedbackTab({
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#f5f3f0]">
-                {["Shop", "Description", "Categories", "Date"].map((h) => (
+                {["Shop", "Description", "Categories", "Source", "Date"].map((h) => (
                   <th key={h} className="text-left px-6 py-3 text-[#adadad] text-[11px] font-medium uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {recentFeedback.length === 0 ? (
-                <tr><td colSpan={4} className="text-center py-16 text-[#adadad] text-sm">No feedback found</td></tr>
+                <tr><td colSpan={5} className="text-center py-16 text-[#adadad] text-sm">No feedback found</td></tr>
               ) : (
                 recentFeedback.map((fb, i) => (
                   <tr key={fb.id} className={`hover:bg-[#faf8f6] transition-colors ${i < recentFeedback.length - 1 ? "border-b border-[#f8f6f3]" : ""}`}>
@@ -516,6 +527,16 @@ function FeedbackTab({
                           </span>
                         ))}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className="inline-block px-2.5 py-1 rounded-full text-[11px] font-medium"
+                        style={fb.source === "telegram"
+                          ? { backgroundColor: "#e8f4fd", color: "#0088cc" }
+                          : { backgroundColor: "#f5f4f3", color: "#8a8078" }}
+                      >
+                        {fb.source === "telegram" ? "Telegram" : "Web"}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button onClick={() => togglePreciseDate(fb.id)} className="text-[#adadad] text-sm hover:text-[#696b63] transition-colors cursor-pointer underline decoration-dotted underline-offset-2">

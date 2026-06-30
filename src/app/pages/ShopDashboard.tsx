@@ -35,6 +35,7 @@ interface Feedback {
   shop_name: string;
   shop: Shop | null;
   created_at: string;
+  source: string | null;
 }
 
 type Period = "7d" | "30d" | "90d" | "1y" | "2y" | "3y" | "4y" | "5y" | "all";
@@ -768,8 +769,8 @@ function ShopDashboardContent({
   }, [periodFeedback, categoryFilter]);
 
   const visibleFeed = feedFiltered.slice(0, feedLimit);
-  const totalInPeriod = periodFeedback.length;
-  const totalAllTime  = visibleShopFeedback.length;
+  const totalInPeriod    = periodFeedback.length;
+  const telegramInPeriod = periodFeedback.filter((f) => f.source === "telegram").length;
 
   if (loading) {
     return (
@@ -821,7 +822,6 @@ function ShopDashboardContent({
                   onPlanChanged={handlePlanChanged}
                 />
               </div>
-              <p className="text-[#adadad] text-xs">{totalAllTime} total feedback</p>
             </div>
           </div>
 
@@ -911,6 +911,11 @@ function ShopDashboardContent({
                 </span>
               )}
             </div>
+            {telegramInPeriod > 0 && (
+              <p className="text-[#adadad] text-xs mt-1.5">
+                {telegramInPeriod} from Telegram
+              </p>
+            )}
           </div>
 
           {topCat && (
@@ -1058,37 +1063,67 @@ function ShopDashboardContent({
             </div>
           </div>
 
-          {visibleFeed.length === 0 ? (
-            <div className="px-6 py-12 text-center text-[#adadad] text-sm">No feedback for this period yet.</div>
-          ) : (
-            <div className="divide-y divide-[#f5f4f2]">
-              {visibleFeed.map((fb) => (
-                <div key={fb.id} className="px-6 py-4">
-                  <div className="flex items-start justify-between gap-4 mb-2">
-                    <div className="flex flex-wrap gap-1.5">
-                      {fb.categories.map((cat) => {
-                        const meta = CATEGORY_META[cat as keyof typeof CATEGORY_META];
-                        return meta ? (
-                          <span key={cat} className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ backgroundColor: meta.bg, color: meta.color }}>
-                            {meta.label}
-                          </span>
-                        ) : null;
-                      })}
-                    </div>
-                    <button
-                      onClick={() => togglePreciseDate(fb.id)}
-                      className="text-[#adadad] text-[10px] shrink-0 hover:text-[#696b63] transition-colors"
-                    >
-                      {preciseDates.has(fb.id)
-                        ? format(parseISO(fb.created_at), "d MMM yyyy, HH:mm")
-                        : formatDistanceToNow(parseISO(fb.created_at), { addSuffix: true })}
-                    </button>
-                  </div>
-                  <p className="text-[#212120] text-sm leading-relaxed">{fb.description}</p>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#f5f3f0]">
+                  {["Description", "Categories", "Source", "Date"].map((h) => (
+                    <th key={h} className="text-left px-6 py-3 text-[#adadad] text-[11px] font-medium uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleFeed.length === 0 ? (
+                  <tr><td colSpan={4} className="text-center py-16 text-[#adadad] text-sm">No feedback for this period yet.</td></tr>
+                ) : (
+                  visibleFeed.map((fb, i) => (
+                    <tr key={fb.id} className={`hover:bg-[#faf8f6] transition-colors ${i < visibleFeed.length - 1 ? "border-b border-[#f8f6f3]" : ""}`}>
+                      <td className="px-6 py-4 max-w-[320px]">
+                        <span className="text-[#696b63] text-sm line-clamp-2 block leading-relaxed">{fb.description}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-1.5">
+                          {fb.categories.map((cat) => {
+                            const meta = CATEGORY_META[cat as keyof typeof CATEGORY_META];
+                            return meta ? (
+                              <span key={cat} className="inline-block px-2.5 py-1 rounded-full text-[11px] font-medium" style={{ backgroundColor: meta.bg, color: meta.color }}>
+                                {meta.label}
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className="inline-block px-2.5 py-1 rounded-full text-[11px] font-medium"
+                          style={fb.source === "telegram"
+                            ? { backgroundColor: "#e8f4fd", color: "#0088cc" }
+                            : { backgroundColor: "#f5f4f3", color: "#8a8078" }}
+                        >
+                          {fb.source === "telegram" ? "Telegram" : "Web"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => togglePreciseDate(fb.id)}
+                          className="text-[#adadad] text-sm hover:text-[#696b63] transition-colors cursor-pointer underline decoration-dotted underline-offset-2"
+                        >
+                          {(() => {
+                            try {
+                              const d = parseISO(fb.created_at);
+                              return preciseDates.has(fb.id)
+                                ? format(d, "yyyy-MM-dd HH:mm:ss")
+                                : formatDistanceToNow(d, { addSuffix: true });
+                            } catch { return "—"; }
+                          })()}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
           {feedFiltered.length > feedLimit && (
             <div className="px-6 py-4 border-t border-[#f5f4f2] text-center">
