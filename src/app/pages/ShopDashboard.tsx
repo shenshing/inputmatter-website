@@ -240,7 +240,7 @@ function QRCodeModal({ shop, onClose }: { shop: Shop; onClose: () => void }) {
   const [mode, setMode] = useState<QRMode>("web");
 
   const activeUrl = mode === "telegram"
-    ? `${TELEGRAM_MINI_APP_BASE}?startapp=${encodeURIComponent(shop.name)}`
+    ? `${TELEGRAM_MINI_APP_BASE}?startapp=${shop.name.replace(/[^A-Za-z0-9_-]/g, '_')}`
     : `${window.location.origin}/?shop=${encodeURIComponent(shop.name)}`;
 
   async function copyUrl() {
