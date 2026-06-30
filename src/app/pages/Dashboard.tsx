@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router";
-import { apiFetch } from "../lib/api";
+import { apiFetch, getAppVisitorStats, AppVisitorStats } from "../lib/api";
 import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, AreaChart, Area,
 } from "recharts";
 import {
   MessageSquare, Store, Tag, Clock, RefreshCw,
-  TrendingUp, ArrowLeft, Inbox,
+  TrendingUp, ArrowLeft, Inbox, Activity,
 } from "lucide-react";
 import {
   format, subWeeks, startOfWeek, endOfWeek,
@@ -93,7 +93,7 @@ const STATUS_OPTIONS: ContactStatus[] = [
   "pending", "following", "success", "fail", "no-reply", "feature-dev",
 ];
 
-type Tab = "feedback" | "contacts";
+type Tab = "feedback" | "contacts" | "visitors";
 
 type Period = "7d" | "30d" | "90d" | "1y" | "2y" | "3y" | "4y" | "5y" | "all";
 
@@ -137,6 +137,13 @@ export default function Dashboard() {
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactsError, setContactsError] = useState<string | null>(null);
   const [contactsFetched, setContactsFetched] = useState(false);
+
+  // Visitors state — fetched lazily when the tab is first opened
+  const [visitorStats, setVisitorStats] = useState<AppVisitorStats | null>(null);
+  const [visitorsLoading, setVisitorsLoading] = useState(false);
+  const [visitorsError, setVisitorsError] = useState<string | null>(null);
+  const [visitorsFetched, setVisitorsFetched] = useState(false);
+  const [visitorPeriod, setVisitorPeriod] = useState('30d');
 
   const togglePreciseDate = (id: string) =>
     setPreciseDates((prev) => {
@@ -182,9 +189,29 @@ export default function Dashboard() {
     }
   };
 
+  const fetchVisitors = async (period = visitorPeriod) => {
+    setVisitorsLoading(true);
+    setVisitorsError(null);
+    try {
+      const data = await getAppVisitorStats('telegram', period);
+      setVisitorStats(data);
+      setVisitorsFetched(true);
+    } catch (err) {
+      setVisitorsError(err instanceof Error ? err.message : "Failed to load visitor stats.");
+    } finally {
+      setVisitorsLoading(false);
+    }
+  };
+
+  const handleVisitorPeriodChange = (period: string) => {
+    setVisitorPeriod(period);
+    fetchVisitors(period);
+  };
+
   function handleTabChange(tab: Tab) {
     setActiveTab(tab);
     if (tab === "contacts" && !contactsFetched) fetchContacts();
+    if (tab === "visitors" && !visitorsFetched) fetchVisitors();
   }
 
   // ── Feedback derived data ───────────────────────────────────────────────────
@@ -318,11 +345,20 @@ export default function Dashboard() {
               <RefreshCw className="w-4 h-4" />
             </button>
           )}
+          {activeTab === "visitors" && (
+            <button
+              onClick={fetchVisitors}
+              className="bg-[#efefef] rounded-[18px] p-2.5 text-[#696b63] hover:text-[#212120] hover:bg-[#e4e4e0] transition-colors shrink-0"
+              title="Refresh"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Tab bar */}
         <div className="px-6 md:px-10 flex gap-0">
-          {(["feedback", "contacts"] as Tab[]).map((tab) => (
+          {(["feedback", "contacts", "visitors"] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
@@ -334,8 +370,10 @@ export default function Dashboard() {
             >
               {tab === "feedback" ? (
                 <><MessageSquare className="w-3.5 h-3.5" /> Feedback</>
-              ) : (
+              ) : tab === "contacts" ? (
                 <><Inbox className="w-3.5 h-3.5" /> Contacts {contacts.length > 0 && <span className="bg-[#ac7f5e] text-white text-[10px] font-semibold rounded-full px-1.5 py-0.5 leading-none">{contacts.length}</span>}</>
+              ) : (
+                <><Activity className="w-3.5 h-3.5" /> Mini App</>
               )}
             </button>
           ))}
@@ -375,6 +413,18 @@ export default function Dashboard() {
               prev.map((c) => (c.id === id ? { ...c, status } : c))
             )
           }
+        />
+      )}
+
+      {/* ── Mini App visitors tab ── */}
+      {activeTab === "visitors" && (
+        <VisitorsTab
+          loading={visitorsLoading}
+          error={visitorsError}
+          stats={visitorStats}
+          onRetry={() => fetchVisitors(visitorPeriod)}
+          period={visitorPeriod}
+          onPeriodChange={handleVisitorPeriodChange}
         />
       )}
     </div>
@@ -710,6 +760,157 @@ function ContactsTab({
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Visitors tab ─────────────────────────────────────────────────────────────
+
+const VISITOR_PERIODS = [
+  { value: '12h',  label: '12h' },
+  { value: '1d',   label: '1d'  },
+  { value: '2d',   label: '2d'  },
+  { value: '5d',   label: '5d'  },
+  { value: '7d',   label: '7d'  },
+  { value: '30d',  label: '30d' },
+  { value: 'all',  label: 'All' },
+];
+
+const CHART_TITLE: Record<string, string> = {
+  '12h': 'Visitors — last 12 hours (hourly)',
+  '1d':  'Visitors — last 24 hours (hourly)',
+  '2d':  'Visitors — last 2 days (hourly)',
+  '5d':  'Visitors — last 5 days (daily)',
+  '7d':  'Visitors — last 7 days (daily)',
+  '30d': 'Visitors — last 30 days (daily)',
+  'all': 'Visitors — all time (daily)',
+};
+
+function formatBucket(bucket: string, granularity: 'hour' | 'day', period: string): string {
+  try {
+    const date = new Date(bucket);
+    if (granularity === 'hour') {
+      return (period === '12h' || period === '1d') ? format(date, 'HH:mm') : format(date, 'd/M HH:mm');
+    }
+    return format(date, 'MMM d');
+  } catch {
+    return String(bucket);
+  }
+}
+
+function VisitorsTab({ loading, error, stats, onRetry, period, onPeriodChange }: {
+  loading: boolean;
+  error: string | null;
+  stats: AppVisitorStats | null;
+  onRetry: () => void;
+  period: string;
+  onPeriodChange: (p: string) => void;
+}) {
+  const chartData = (stats?.chartData ?? []).map((d) => ({
+    label: formatBucket(String(d.bucket), stats?.granularity ?? 'day', period),
+    count: d.count,
+  }));
+
+  const barSize = chartData.length > 24 ? 5 : chartData.length > 12 ? 8 : 16;
+  const xAxisInterval = Math.max(0, Math.floor(chartData.length / 8));
+
+  return (
+    <div className="px-6 md:px-10 py-8 space-y-8">
+      {/* KPI */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <KpiCard
+          icon={<Activity className="w-4 h-4 text-[#ac7f5e]" />}
+          iconBg="bg-[#fef3ec]"
+          label="Total Telegram Visitors"
+          value={stats?.total ?? '—'}
+        />
+      </div>
+
+      {/* Chart with period filter */}
+      <div className="bg-white border border-[#e8e8e4] rounded-[24px] p-6">
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+          <p className="text-[#212120] text-sm font-medium">
+            {CHART_TITLE[period] ?? 'Visitors'}
+          </p>
+          <div className="flex items-center gap-1 flex-wrap">
+            {VISITOR_PERIODS.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => onPeriodChange(p.value)}
+                disabled={loading}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 ${
+                  period === p.value
+                    ? 'bg-[#ac7f5e] text-white'
+                    : 'bg-[#efefef] text-[#696b63] hover:bg-[#e4e4e0]'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {loading ? (
+          <div className="flex items-center justify-center h-[220px] text-[#adadad] text-sm">Loading…</div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-[220px] gap-2">
+            <p className="text-[#696b63] text-sm">{error}</p>
+            <button onClick={onRetry} className="text-sm text-[#ac7f5e] hover:underline">Retry</button>
+          </div>
+        ) : chartData.length === 0 ? (
+          <p className="text-[#adadad] text-sm text-center py-16">No data for this period</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={chartData} barSize={barSize}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0ede8" vertical={false} />
+              <XAxis dataKey="label" interval={xAxisInterval} tick={{ fontSize: 11, fill: "#adadad" }} axisLine={false} tickLine={false} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#adadad" }} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ border: "1px solid #e8e8e4", borderRadius: 12, fontSize: 12 }}
+                cursor={{ fill: "#f5f4f3" }}
+              />
+              <Bar dataKey="count" fill="#ac7f5e" radius={[4, 4, 0, 0]} name="Visitors" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Recent visitors list */}
+      <div className="bg-white border border-[#e8e8e4] rounded-[24px] overflow-hidden">
+        <div className="px-6 py-4 border-b border-[#e8e8e4]">
+          <p className="text-[#212120] text-sm font-medium">Recent visitors</p>
+        </div>
+        {(stats?.recentVisitors ?? []).length === 0 ? (
+          <p className="text-[#adadad] text-sm text-center py-10">No visitors yet</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[#e8e8e4] text-left">
+                  <th className="px-6 py-3 text-[#adadad] font-medium text-xs">#</th>
+                  <th className="px-6 py-3 text-[#adadad] font-medium text-xs">Type</th>
+                  <th className="px-6 py-3 text-[#adadad] font-medium text-xs">Date & Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(stats?.recentVisitors ?? []).map((v, i) => (
+                  <tr key={v.id} className="border-b border-[#f5f4f3] last:border-0 hover:bg-[#fafaf8]">
+                    <td className="px-6 py-3 text-[#adadad]">{i + 1}</td>
+                    <td className="px-6 py-3">
+                      <span className="inline-flex items-center gap-1.5 bg-[#f0f4ff] text-[#4f6fbd] text-xs font-medium px-2.5 py-1 rounded-full">
+                        <Activity className="w-3 h-3" />
+                        {v.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3 text-[#696b63] tabular-nums">
+                      {(() => { try { return format(parseISO(v.createdAt), 'dd MMM yyyy, HH:mm:ss'); } catch { return v.createdAt; } })()}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

@@ -34,6 +34,14 @@ export default function FeedbackForm() {
   const handleSubmitRef = useRef<() => void>(() => {});
 
   useEffect(() => {
+    fetch(`${API_URL}/app-visitors`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'telegram' }),
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     fetch(`${API_URL}/shops`)
       .then((res) => res.json())
       .then((data: Shop[]) => setShops(data))
