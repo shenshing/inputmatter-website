@@ -1,0 +1,239 @@
+import { useEffect, useState } from "react";
+import { apiFetch } from "../lib/api";
+import { MessageSquare } from "lucide-react";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+
+const CATEGORIES = [
+  { value: "feedback",        label: "Feedback" },
+  { value: "feature-request", label: "Feature Request" },
+  { value: "free-trial",      label: "Free Trial Request" },
+  { value: "book-demo",       label: "Book a Demo" },
+  { value: "other",           label: "Other" },
+] as const;
+
+interface FormState {
+  category: string;
+  description: string;
+  shopName: string;
+  name: string;
+  contactInfo: string;
+}
+
+const EMPTY: FormState = {
+  category: "",
+  description: "",
+  shopName: "",
+  name: "",
+  contactInfo: "",
+};
+
+interface ContactModalProps {
+  onClose: () => void;
+  initialCategory?: string;
+}
+
+export default function ContactModal({ onClose, initialCategory = "" }: ContactModalProps) {
+  const [form, setForm] = useState<FormState>({ ...EMPTY, category: initialCategory });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function set(field: keyof FormState, value: string) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await apiFetch("/contact", {
+        method: "POST",
+        body: JSON.stringify({
+          category: form.category,
+          description: form.description.trim(),
+          shopName: form.shopName.trim() || undefined,
+          name: form.name.trim(),
+          contactInfo: form.contactInfo.trim(),
+        }),
+      });
+      setSuccess(true);
+    } catch (err: any) {
+      setError(err.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="bg-[#fdf8f2] rounded-[28px] shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        style={{ fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}
+      >
+        <div className="p-8">
+
+          {success ? (
+            /* ── Success state ── */
+            <div className="text-center space-y-6 py-8">
+              <div className="w-16 h-16 bg-[#e8f5e9] rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-8 h-8 text-[#2e7d32]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold text-[#212120]">Message sent!</h2>
+                <p className="text-[#696b63] text-sm leading-relaxed max-w-sm mx-auto">
+                  Thanks for reaching out. We've received your message and will get back to you as soon as possible.
+                </p>
+              </div>
+              <Button
+                onClick={onClose}
+                className="bg-[#212120] hover:bg-[#212120]/90 text-white px-8"
+              >
+                Close
+              </Button>
+            </div>
+          ) : (
+            /* ── Form ── */
+            <>
+              {/* Header */}
+              <div className="flex items-start justify-between gap-4 mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 bg-[#fef7f2] rounded-[14px] flex items-center justify-center shrink-0">
+                    <MessageSquare className="w-5 h-5 text-[#ac7f5e]" />
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-semibold text-[#212120] leading-tight">Contact us</h1>
+                    <p className="text-sm text-[#696b63] mt-0.5">
+                      Feature requests, demo bookings, or just say hi — we'd love to hear from you.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 rounded-full bg-[#efefef] flex items-center justify-center text-[#696b63] hover:bg-[#e4e4e0] transition-colors shrink-0 mt-0.5"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+
+                {/* Category */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="category">Category</Label>
+                  <div className="relative">
+                    <select
+                      id="category"
+                      value={form.category}
+                      onChange={(e) => set("category", e.target.value)}
+                      required
+                      className="w-full bg-white border border-[#f1e7d9] rounded-xl px-4 py-3 text-[#212120] text-sm appearance-none outline-none cursor-pointer pr-9"
+                    >
+                      <option value="" disabled>Select a category…</option>
+                      {CATEGORIES.map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                    <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[#adadad] text-xs">▾</span>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="description">Message</Label>
+                  <textarea
+                    id="description"
+                    value={form.description}
+                    onChange={(e) => set("description", e.target.value)}
+                    placeholder="Tell us what's on your mind…"
+                    required
+                    maxLength={2000}
+                    rows={5}
+                    className="w-full bg-white border border-[#f1e7d9] rounded-xl px-4 py-3 text-[#212120] placeholder:text-[#adadad] text-sm resize-none outline-none"
+                  />
+                  <p className="text-right text-[#adadad] text-xs">{form.description.length}/2000</p>
+                </div>
+
+                {/* Name + Contact info — side by side on md+ */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="name">Your name</Label>
+                    <Input
+                      id="name"
+                      type="text"
+                      placeholder="Jane Smith"
+                      value={form.name}
+                      onChange={(e) => set("name", e.target.value)}
+                      required
+                      maxLength={100}
+                      className="bg-white border-[#f1e7d9]"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="contactInfo">Phone or email</Label>
+                    <Input
+                      id="contactInfo"
+                      type="text"
+                      placeholder="jane@example.com"
+                      value={form.contactInfo}
+                      onChange={(e) => set("contactInfo", e.target.value)}
+                      required
+                      maxLength={200}
+                      className="bg-white border-[#f1e7d9]"
+                    />
+                  </div>
+                </div>
+
+                {/* Shop name — optional */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="shopName">
+                    Shop name{" "}
+                    <span className="text-[#adadad] font-normal">(optional)</span>
+                  </Label>
+                  <Input
+                    id="shopName"
+                    type="text"
+                    placeholder="e.g. Tube Coffee (BKK)"
+                    value={form.shopName}
+                    onChange={(e) => set("shopName", e.target.value)}
+                    maxLength={100}
+                    className="bg-white border-[#f1e7d9]"
+                  />
+                </div>
+
+                {error && (
+                  <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">
+                    {error}
+                  </p>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-[#ac7f5e] hover:bg-[#9a6f4e] text-white py-3 text-sm font-semibold"
+                >
+                  {loading ? "Sending…" : "Send message"}
+                </Button>
+              </form>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
