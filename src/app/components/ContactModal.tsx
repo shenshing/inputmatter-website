@@ -1,10 +1,9 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
-import { ArrowLeft, MessageSquare } from "lucide-react";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
+import { MessageSquare } from "lucide-react";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 const CATEGORIES = [
   { value: "feedback",        label: "Feedback" },
@@ -30,11 +29,22 @@ const EMPTY: FormState = {
   contactInfo: "",
 };
 
-export default function ContactForm() {
-  const [form, setForm] = useState<FormState>(EMPTY);
+interface ContactModalProps {
+  onClose: () => void;
+  initialCategory?: string;
+}
+
+export default function ContactModal({ onClose, initialCategory = "" }: ContactModalProps) {
+  const [form, setForm] = useState<FormState>({ ...EMPTY, category: initialCategory });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   function set(field: keyof FormState, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -64,21 +74,15 @@ export default function ContactForm() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fbfcf7] flex flex-col">
-
-      {/* Top bar */}
-      <div className="px-6 md:px-10 py-5 flex items-center border-b border-[#e8e8e4]">
-        <Link
-          to="/"
-          className="flex items-center gap-1.5 text-[#696b63] hover:text-[#212120] transition-colors text-sm"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </Link>
-      </div>
-
-      <div className="flex-1 flex items-start justify-center px-4 py-12 md:py-16">
-        <div className="w-full max-w-lg">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="bg-[#fdf8f2] rounded-[28px] shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        style={{ fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}
+      >
+        <div className="p-8">
 
           {success ? (
             /* ── Success state ── */
@@ -94,26 +98,37 @@ export default function ContactForm() {
                   Thanks for reaching out. We've received your message and will get back to you as soon as possible.
                 </p>
               </div>
-              <Link to="/">
-                <Button className="bg-[#212120] hover:bg-[#212120]/90 text-white px-8">
-                  Back to home
-                </Button>
-              </Link>
+              <Button
+                onClick={onClose}
+                className="bg-[#212120] hover:bg-[#212120]/90 text-white px-8"
+              >
+                Close
+              </Button>
             </div>
           ) : (
             /* ── Form ── */
             <>
               {/* Header */}
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-11 h-11 bg-[#fef7f2] rounded-[14px] flex items-center justify-center shrink-0">
-                  <MessageSquare className="w-5 h-5 text-[#ac7f5e]" />
+              <div className="flex items-start justify-between gap-4 mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 bg-[#fef7f2] rounded-[14px] flex items-center justify-center shrink-0">
+                    <MessageSquare className="w-5 h-5 text-[#ac7f5e]" />
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-semibold text-[#212120] leading-tight">Contact us</h1>
+                    <p className="text-sm text-[#696b63] mt-0.5">
+                      Feature requests, demo bookings, or just say hi — we'd love to hear from you.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h1 className="text-xl font-semibold text-[#212120] leading-tight">Contact us</h1>
-                  <p className="text-sm text-[#696b63] mt-0.5">
-                    Feature requests, demo bookings, or just say hi — we'd love to hear from you.
-                  </p>
-                </div>
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 rounded-full bg-[#efefef] flex items-center justify-center text-[#696b63] hover:bg-[#e4e4e0] transition-colors shrink-0 mt-0.5"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
@@ -127,7 +142,7 @@ export default function ContactForm() {
                       value={form.category}
                       onChange={(e) => set("category", e.target.value)}
                       required
-                      className="w-full bg-[#efefef] border-none rounded-xl px-4 py-3 text-[#212120] text-sm appearance-none outline-none cursor-pointer pr-9"
+                      className="w-full bg-white border border-[#f1e7d9] rounded-xl px-4 py-3 text-[#212120] text-sm appearance-none outline-none cursor-pointer pr-9"
                     >
                       <option value="" disabled>Select a category…</option>
                       {CATEGORIES.map((c) => (
@@ -149,7 +164,7 @@ export default function ContactForm() {
                     required
                     maxLength={2000}
                     rows={5}
-                    className="w-full bg-[#efefef] border-none rounded-xl px-4 py-3 text-[#212120] placeholder:text-[#adadad] text-sm resize-none outline-none"
+                    className="w-full bg-white border border-[#f1e7d9] rounded-xl px-4 py-3 text-[#212120] placeholder:text-[#adadad] text-sm resize-none outline-none"
                   />
                   <p className="text-right text-[#adadad] text-xs">{form.description.length}/2000</p>
                 </div>
@@ -166,6 +181,7 @@ export default function ContactForm() {
                       onChange={(e) => set("name", e.target.value)}
                       required
                       maxLength={100}
+                      className="bg-white border-[#f1e7d9]"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -178,6 +194,7 @@ export default function ContactForm() {
                       onChange={(e) => set("contactInfo", e.target.value)}
                       required
                       maxLength={200}
+                      className="bg-white border-[#f1e7d9]"
                     />
                   </div>
                 </div>
@@ -195,6 +212,7 @@ export default function ContactForm() {
                     value={form.shopName}
                     onChange={(e) => set("shopName", e.target.value)}
                     maxLength={100}
+                    className="bg-white border-[#f1e7d9]"
                   />
                 </div>
 

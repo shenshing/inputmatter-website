@@ -1,0 +1,139 @@
+import { useState } from "react";
+import { Link } from "react-router";
+import { Check } from "lucide-react";
+import SiteNav from "../components/SiteNav";
+import SiteFooter from "../components/SiteFooter";
+import ContactModal from "../components/ContactModal";
+
+const REAL_TODAY = ["Free to start", "Full dashboard", "QR code for the counter", "No hidden limits"];
+
+const VISION = [
+  {
+    lead: "Feedback shaped by you, not by us.",
+    body: "Every business is different. Imagine asking not just about the coffee, but about the security guard at the gate, or the staff walking past at the door — the moments that add up to the experience.",
+  },
+  {
+    lead: "Said, not typed.",
+    body: "Voice as an input — for even less friction, and more honest, in-the-moment feedback.",
+  },
+  {
+    lead: "Beyond the counter.",
+    body: "Online stores that want to know how delivery felt, or how fast support replied before a sale. SaaS products that want to know why someone almost didn't renew. If people interact with your business, we want to help you hear them.",
+  },
+] as const;
+
+function CTAButtons({ dark = false, onBookDemo }: { dark?: boolean; onBookDemo: () => void }) {
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+      <Link
+        to="/register"
+        className="w-full sm:w-auto text-center bg-[#d9764a] text-white rounded-xl px-6 py-4 text-[15.5px] font-bold shadow-[0_12px_24px_-10px_rgba(217,118,74,0.65)] hover:bg-[#d9764a]/90 transition-colors"
+      >
+        Get started free
+      </Link>
+      <button
+        type="button"
+        onClick={onBookDemo}
+        className={
+          dark
+            ? "w-full sm:w-auto text-center border border-white/20 text-[#fdf8f2] rounded-xl px-6 py-4 text-[15.5px] font-semibold hover:bg-white/10 transition-colors"
+            : "w-full sm:w-auto text-center bg-white text-[#2c2622] border border-[#e7dccd] rounded-xl px-6 py-4 text-[15.5px] font-semibold hover:bg-[#faf3ea] transition-colors"
+        }
+      >
+        Book a Demo
+      </button>
+    </div>
+  );
+}
+
+export default function Business() {
+  const [contactCategory, setContactCategory] = useState<string | null>(null);
+
+  return (
+    <div
+      className="scroll-smooth min-h-screen bg-[#fdf8f2] flex flex-col"
+      style={{ fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}
+    >
+
+      <SiteNav howItWorksHref="/welcome#how-it-works" />
+
+      {/* Hero + why it matters */}
+      <div className="max-w-[680px] mx-auto w-full px-4 sm:px-5 md:px-10 pt-16 sm:pt-20 pb-16 sm:pb-20 text-center">
+        <h1 className="font-['Plus_Jakarta_Sans'] text-[30px] sm:text-[44px] font-extrabold text-[#2c2622] tracking-tight leading-[1.1]">
+          If InputMatter says you're exceptional, you are.
+        </h1>
+        <p className="text-[15px] sm:text-[17px] text-[#6f6256] leading-relaxed mt-5 max-w-lg mx-auto">
+          Good feedback shows you what's working. Bad feedback shows you what to fix.
+          Anonymous, honest, and yours to act on.
+        </p>
+
+        <div className="mt-8">
+          <CTAButtons onBookDemo={() => setContactCategory("book-demo")} />
+        </div>
+
+        <p className="text-[14.5px] sm:text-[15px] text-[#6f6256] leading-relaxed mt-14 max-w-md mx-auto">
+          We believe feedback cuts both ways. The good tells you what to keep doing — the bad
+          tells you what to fix before it costs you more customers. Both only work if they're
+          honest, and honesty needs anonymity. That's the whole idea. The dashboard, the QR
+          code, the free plan — they all exist to make that as frictionless as possible.
+        </p>
+
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-7">
+          {REAL_TODAY.map((item) => (
+            <span key={item} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#6f6256]">
+              <Check className="w-3.5 h-3.5 text-[#d9764a]" strokeWidth={3} />
+              {item}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Vision */}
+      <div className="bg-[#2c2622] flex-1">
+        <div className="max-w-[680px] mx-auto w-full px-4 sm:px-5 md:px-10 py-16 sm:py-20 text-center">
+          <span className="text-xs font-semibold tracking-wide uppercase text-[#e8a882]">
+            Where we're going
+          </span>
+          <h2 className="font-['Plus_Jakarta_Sans'] text-[24px] sm:text-[30px] font-extrabold text-[#fdf8f2] tracking-tight leading-[1.2] mt-4">
+            We're not building a feedback form. We're building the place people trust.
+          </h2>
+
+          <div className="mt-12 space-y-10 text-left max-w-md mx-auto">
+            {VISION.map((point) => (
+              <div key={point.lead}>
+                <div className="font-['Plus_Jakarta_Sans'] font-bold text-[#fdf8f2] text-[16px]">
+                  {point.lead}
+                </div>
+                <div className="text-[14px] text-[#c9beb2] leading-relaxed mt-1.5">
+                  {point.body}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[14.5px] text-[#c9beb2] leading-relaxed mt-12 max-w-md mx-auto">
+            InputMatter is still early — and we'd rather build what's next with the businesses
+            using it than guess alone.{" "}
+            <button
+              type="button"
+              onClick={() => setContactCategory("feature-request")}
+              className="text-[#e8a882] font-semibold hover:text-[#fdf8f2] transition-colors"
+            >
+              Tell us what you need →
+            </button>
+          </p>
+
+          <div className="mt-10">
+            <CTAButtons dark onBookDemo={() => setContactCategory("book-demo")} />
+          </div>
+        </div>
+      </div>
+
+      <SiteFooter />
+
+      {contactCategory && (
+        <ContactModal initialCategory={contactCategory} onClose={() => setContactCategory(null)} />
+      )}
+    </div>
+  );
+}

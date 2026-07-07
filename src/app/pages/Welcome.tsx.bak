@@ -1,0 +1,217 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router";
+import { Menu, X } from "lucide-react";
+import { apiFetch } from "../lib/api";
+
+interface Shop {
+  id: number;
+  name: string;
+  logo_url: string | null;
+}
+
+const STEPS = [
+  {
+    title: "Scan or pick a shop",
+    body: "Use the QR at the counter, or search any place you visited.",
+  },
+  {
+    title: "Share your thoughts",
+    body: "Rate it and add a note — anonymous, no sign-up.",
+  },
+  {
+    title: "They get better",
+    body: "Owners see honest trends and improve what matters.",
+  },
+] as const;
+
+function Logo({ size = 30, inner = 14 }: { size?: number; inner?: number }) {
+  return (
+    <div
+      style={{ width: size, height: size }}
+      className="rounded-[10px] bg-gradient-to-br from-[#E08350] to-[#CF6638] flex items-center justify-center shrink-0"
+    >
+      <div style={{ width: inner, height: inner }} className="bg-white rounded-[5px_5px_5px_2px]" />
+    </div>
+  );
+}
+
+function ShopCard({ shop }: { shop: Shop }) {
+  return (
+    <div className="flex-none w-40 md:w-auto">
+      <div className="relative h-28 md:h-[148px] rounded-2xl overflow-hidden border border-[#f0e4d4] bg-[repeating-linear-gradient(45deg,#f1e3d3_0,#f1e3d3_9px,#f8efe2_9px,#f8efe2_18px)] flex items-center justify-center">
+        {shop.logo_url ? (
+          <img src={shop.logo_url} alt={shop.name} className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-[11px] font-mono text-[#c2ab92]">shop photo</span>
+        )}
+      </div>
+      <div className="font-['Plus_Jakarta_Sans'] text-[14.5px] font-bold text-[#2c2622] mt-2.5 truncate">
+        {shop.name}
+      </div>
+    </div>
+  );
+}
+
+export default function Welcome() {
+  const [popularShops, setPopularShops] = useState<Shop[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    apiFetch<Shop[]>("/shops/popular")
+      .then(setPopularShops)
+      .catch(() => {});
+  }, []);
+
+  return (
+    <div
+      className="scroll-smooth min-h-screen pb-14"
+      style={{ background: "#f3ece2", fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}
+    >
+      <div className="max-w-[1120px] mx-auto px-4 md:px-6 pt-6">
+        <div className="bg-[#fdf8f2] rounded-[22px] overflow-hidden border border-[#efe4d5] shadow-[0_30px_70px_-34px_rgba(60,40,24,0.3),0_2px_8px_rgba(60,40,24,0.04)]">
+
+          {/* Nav */}
+          <div className="border-b border-[#f1e8db]">
+            <div className="flex items-center justify-between px-4 sm:px-5 md:px-10 py-4 sm:py-5 gap-3">
+              <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                <Logo />
+                <span className="hidden min-[400px]:inline font-['Plus_Jakarta_Sans'] font-extrabold text-[15px] sm:text-[17px] tracking-tight text-[#2C2623] truncate">
+                  InputMatter
+                </span>
+              </div>
+              <div className="flex items-center gap-3 md:gap-6 text-[13.5px] font-medium text-[#6f6256] shrink-0">
+                <a href="#how-it-works" className="hidden md:inline hover:text-[#2c2622] transition-colors">
+                  How it works
+                </a>
+                <span className="hidden md:inline">For businesses</span>
+                <Link
+                  to="/"
+                  className="text-white bg-[#2c2622] hover:bg-[#2c2622]/90 rounded-full px-3.5 sm:px-4 py-2 sm:py-2.5 font-semibold transition-colors whitespace-nowrap"
+                >
+                  Leave feedback
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen((open) => !open)}
+                  aria-label={menuOpen ? "Close menu" : "Open menu"}
+                  aria-expanded={menuOpen}
+                  className="md:hidden w-9 h-9 flex items-center justify-center rounded-full text-[#2c2622] hover:bg-[#f1e8db] transition-colors shrink-0"
+                >
+                  {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            {menuOpen && (
+              <div className="md:hidden flex flex-col px-4 sm:px-5 pb-4 border-t border-[#f1e8db] pt-2">
+                <a
+                  href="#how-it-works"
+                  onClick={() => setMenuOpen(false)}
+                  className="py-2.5 text-[14.5px] font-semibold text-[#2c2622]"
+                >
+                  How it works
+                </a>
+                <span className="py-2.5 text-[14.5px] font-medium text-[#9a8c7c]">For businesses</span>
+              </div>
+            )}
+          </div>
+
+          {/* Hero */}
+          <div className="flex flex-col lg:flex-row gap-8 lg:gap-9 px-4 sm:px-5 md:px-10 py-8 sm:py-9 md:py-11 items-center">
+            <div className="flex-1 w-full">
+              <span className="inline-flex items-center gap-1.5 text-xs text-[#b1603a] bg-[#f6e7dc] rounded-full px-3.5 py-1.5 font-semibold mb-5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#d9764a] animate-pulse" />
+                100% anonymous, always
+              </span>
+              <h1 className="font-['Plus_Jakarta_Sans'] text-[28px] min-[400px]:text-[32px] md:text-[46px] font-extrabold text-[#2c2622] tracking-tight leading-[1.08] md:leading-[1.05]">
+                Tell them what you <span className="text-[#d9764a]">really</span> think.
+              </h1>
+              <p className="text-[15px] sm:text-[16px] md:text-[16.5px] text-[#6f6256] leading-relaxed mt-4 max-w-md">
+                Honest, anonymous feedback for the cafés and shops you love. No account. No names. Just the truth they need to get better.
+              </p>
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 mt-7">
+                <Link
+                  to="/"
+                  className="text-center bg-[#d9764a] text-white rounded-xl px-6 py-4 text-[15.5px] font-bold shadow-[0_12px_24px_-10px_rgba(217,118,74,0.65)] hover:bg-[#d9764a]/90 transition-colors"
+                >
+                  Leave feedback →
+                </Link>
+                <a
+                  href="#how-it-works"
+                  className="text-center bg-white text-[#2c2622] border border-[#e7dccd] rounded-xl px-6 py-4 text-[15.5px] font-semibold hover:bg-[#faf3ea] transition-colors"
+                >
+                  See how it works
+                </a>
+              </div>
+              <div className="flex gap-4 min-[400px]:gap-6 mt-8">
+                {[
+                  { value: "12,400+", label: "notes shared" },
+                  { value: "480", label: "local shops" },
+                  { value: "30 sec", label: "to share" },
+                ].map((stat) => (
+                  <div key={stat.label}>
+                    <div className="font-['Plus_Jakarta_Sans'] text-[19px] min-[400px]:text-[22px] font-extrabold text-[#2c2622]">
+                      {stat.value}
+                    </div>
+                    <div className="text-[11px] min-[400px]:text-xs text-[#9a8c7c]">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="hidden lg:flex w-[340px] h-[350px] rounded-[18px] bg-[repeating-linear-gradient(45deg,#f1e3d3_0,#f1e3d3_10px,#f8efe2_10px,#f8efe2_20px)] border border-[#f0e4d4] items-center justify-center font-mono text-xs text-[#c2ab92] shrink-0">
+              café photo
+            </div>
+          </div>
+
+          {/* How it works */}
+          <div id="how-it-works" className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4 sm:px-5 md:px-10 pb-9 scroll-mt-6">
+            {STEPS.map((step, i) => (
+              <div key={step.title} className="bg-white border border-[#f1e7d9] rounded-2xl p-5">
+                <div className="w-8 h-8 rounded-full bg-[#f6e7dc] text-[#d9764a] font-bold font-['Plus_Jakarta_Sans'] flex items-center justify-center mb-3.5">
+                  {i + 1}
+                </div>
+                <div className="font-['Plus_Jakarta_Sans'] font-bold text-[#2c2622] text-[15.5px]">
+                  {step.title}
+                </div>
+                <div className="text-[13.5px] text-[#7d7064] leading-relaxed mt-1.5">
+                  {step.body}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Popular near you */}
+          {popularShops.length > 0 && (
+            <div className="px-4 sm:px-5 md:px-10 pb-10 pt-2 border-t border-[#f1e8db]">
+              <div className="flex items-baseline justify-between my-7">
+                <div className="font-['Plus_Jakarta_Sans'] text-xl sm:text-2xl font-extrabold text-[#2c2622] tracking-tight">
+                  Popular near you
+                </div>
+                <span className="text-sm font-semibold text-[#b1603a] shrink-0">See all places</span>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-1 -mx-1 px-1 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible md:mx-0 md:px-0">
+                {popularShops.map((shop) => (
+                  <ShopCard key={shop.id} shop={shop} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="flex flex-col sm:flex-row items-center sm:justify-between gap-2 text-center sm:text-left px-4 sm:px-5 md:px-10 py-5 border-t border-[#f1e8db] bg-[#faf3ea]">
+            <div className="flex items-center gap-2">
+              <Logo size={22} inner={10} />
+              <span className="font-['Plus_Jakarta_Sans'] font-extrabold text-[13.5px] text-[#2C2623]">
+                InputMatter
+              </span>
+            </div>
+            <div className="text-xs text-[#9a8c7c]">
+              Anonymous feedback platform · © {new Date().getFullYear()}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}

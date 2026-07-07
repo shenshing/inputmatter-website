@@ -1,0 +1,65 @@
+import { useState } from "react";
+import { Link } from "react-router";
+import { Check } from "lucide-react";
+import SiteNav from "../components/SiteNav";
+import SiteFooter from "../components/SiteFooter";
+import ContactModal from "../components/ContactModal";
+import CTAButtons from "../components/CTAButtons";
+
+const REAL_TODAY = ["Free to start", "Full dashboard", "QR code for the counter", "No hidden limits"];
+
+export default function Business() {
+  const [contactCategory, setContactCategory] = useState<string | null>(null);
+
+  return (
+    <div
+      className="scroll-smooth min-h-screen bg-[#fdf8f2] flex flex-col"
+      style={{ fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}
+    >
+
+      <SiteNav howItWorksHref="/welcome#how-it-works" />
+
+      <div className="max-w-[680px] mx-auto w-full px-4 sm:px-5 md:px-10 pt-16 sm:pt-20 pb-16 sm:pb-20 text-center flex-1">
+        <h1 className="font-['Plus_Jakarta_Sans'] text-[30px] sm:text-[44px] font-extrabold text-[#2c2622] tracking-tight leading-[1.1]">
+          If InputMatter says you're exceptional, you are.
+        </h1>
+        <p className="text-[15px] sm:text-[17px] text-[#6f6256] leading-relaxed mt-5 max-w-lg mx-auto">
+          Good feedback shows you what's working. Bad feedback shows you what to fix.
+          Anonymous, honest, and yours to act on.
+        </p>
+
+        <div className="mt-8">
+          <CTAButtons onBookDemo={() => setContactCategory("book-demo")} />
+        </div>
+
+        <p className="text-[14.5px] sm:text-[15px] text-[#6f6256] leading-relaxed mt-14 max-w-md mx-auto">
+          We believe feedback cuts both ways. The good tells you what to keep doing — the bad
+          tells you what to fix before it costs you more customers. Both only work if they're
+          honest, and honesty needs anonymity. That's the whole idea. The dashboard, the QR
+          code, the free plan — they all exist to make that as frictionless as possible.
+        </p>
+
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-7">
+          {REAL_TODAY.map((item) => (
+            <span key={item} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#6f6256]">
+              <Check className="w-3.5 h-3.5 text-[#d9764a]" strokeWidth={3} />
+              {item}
+            </span>
+          ))}
+        </div>
+
+        <div className="mt-10">
+          <Link to="/commitment" className="text-sm font-semibold text-[#b1603a] hover:text-[#2c2622] transition-colors">
+            Read our commitment →
+          </Link>
+        </div>
+      </div>
+
+      <SiteFooter />
+
+      {contactCategory && (
+        <ContactModal initialCategory={contactCategory} onClose={() => setContactCategory(null)} />
+      )}
+    </div>
+  );
+}

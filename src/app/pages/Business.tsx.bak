@@ -1,0 +1,212 @@
+import { useState } from "react";
+import { Link } from "react-router";
+import SiteNav from "../components/SiteNav";
+import SiteFooter from "../components/SiteFooter";
+import ContactModal from "../components/ContactModal";
+
+const PILLARS = [
+  {
+    title: "Know your strengths",
+    body: "Good feedback tells you what's working — so you can keep doing it, or do it even better.",
+  },
+  {
+    title: "Fix what's holding you back",
+    body: "Bad feedback shows you exactly where you're losing customers — before you lose more of them.",
+  },
+  {
+    title: "Honesty through anonymity",
+    body: "No names, no accounts. Just the truth people don't usually say to your face.",
+  },
+] as const;
+
+const PROOF_POINTS = [
+  {
+    title: "Free to start",
+    body: "Register your shop and start collecting feedback today. No sales call, no credit card.",
+  },
+  {
+    title: "A dashboard that shows the full picture",
+    body: "Category breakdowns, monthly trends, and every piece of feedback in one place.",
+  },
+  {
+    title: "A QR code customers actually use",
+    body: "Print it at the counter or share it on Telegram — feedback in seconds, no app required.",
+  },
+  {
+    title: "Nothing hidden, nothing locked",
+    body: "Your dashboard always shows exactly how much feedback you can see this month, and what upgrading unlocks.",
+  },
+] as const;
+
+const ROADMAP = [
+  {
+    title: "Feedback tailored to your business",
+    body: "Every business is different. Imagine asking not just about the coffee, but about the security guard at the gate, or the staff walking past at the door — the moments that add up to the experience.",
+  },
+  {
+    title: "Speak it, don't type it",
+    body: "Voice as an input — for even less friction, and more honest, in-the-moment feedback.",
+  },
+  {
+    title: "Beyond shops and restaurants",
+    body: "Online stores that want to know how delivery felt, or how fast support replied before a sale. SaaS products that want to know why someone almost didn't renew. If people interact with your business, we want to help you hear them.",
+  },
+] as const;
+
+export default function Business() {
+  const [contactCategory, setContactCategory] = useState<string | null>(null);
+
+  return (
+    <div
+      className="scroll-smooth min-h-screen bg-[#fdf8f2] flex flex-col"
+      style={{ fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}
+    >
+
+      <SiteNav howItWorksHref="/welcome#how-it-works" />
+
+      {/* Hero */}
+      <div className="max-w-[720px] mx-auto w-full px-4 sm:px-5 md:px-10 pt-14 sm:pt-16 pb-10 text-center">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#b1603a] bg-[#f6e7dc] rounded-full px-3.5 py-1.5 mb-6">
+          For businesses
+        </span>
+        <h1 className="font-['Plus_Jakarta_Sans'] text-[30px] sm:text-[42px] font-extrabold text-[#2c2622] tracking-tight leading-[1.1]">
+          If InputMatter says you're exceptional, you are.
+        </h1>
+        <p className="text-[15px] sm:text-[17px] text-[#6f6256] leading-relaxed mt-5 max-w-lg mx-auto">
+          Good feedback shows you what's working. Bad feedback shows you what to fix.
+          Anonymous, honest, and yours to act on.
+        </p>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
+          <Link
+            to="/register"
+            className="w-full sm:w-auto text-center bg-[#d9764a] text-white rounded-xl px-6 py-4 text-[15.5px] font-bold shadow-[0_12px_24px_-10px_rgba(217,118,74,0.65)] hover:bg-[#d9764a]/90 transition-colors"
+          >
+            Get started free
+          </Link>
+          <button
+            type="button"
+            onClick={() => setContactCategory("book-demo")}
+            className="w-full sm:w-auto text-center bg-white text-[#2c2622] border border-[#e7dccd] rounded-xl px-6 py-4 text-[15.5px] font-semibold hover:bg-[#faf3ea] transition-colors"
+          >
+            Book a Demo
+          </button>
+        </div>
+      </div>
+
+      {/* Feedback, both ways */}
+      <div className="max-w-[1120px] mx-auto w-full px-4 sm:px-5 md:px-10 py-10">
+        <h2 className="font-['Plus_Jakarta_Sans'] text-xl sm:text-2xl font-extrabold text-[#2c2622] tracking-tight text-center mb-8">
+          Feedback, both ways
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {PILLARS.map((pillar) => (
+            <div key={pillar.title} className="bg-white border border-[#f1e7d9] rounded-2xl p-6">
+              <div className="font-['Plus_Jakarta_Sans'] font-bold text-[#2c2622] text-[16px]">
+                {pillar.title}
+              </div>
+              <div className="text-[13.5px] text-[#7d7064] leading-relaxed mt-2">
+                {pillar.body}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* What you get today */}
+      <div className="border-t border-[#f1e8db]">
+        <div className="max-w-[1120px] mx-auto w-full px-4 sm:px-5 md:px-10 py-10">
+          <h2 className="font-['Plus_Jakarta_Sans'] text-xl sm:text-2xl font-extrabold text-[#2c2622] tracking-tight text-center mb-8">
+            What you get today
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {PROOF_POINTS.map((point) => (
+              <div key={point.title} className="bg-white border border-[#f1e7d9] rounded-2xl p-6">
+                <div className="font-['Plus_Jakarta_Sans'] font-bold text-[#2c2622] text-[15.5px]">
+                  {point.title}
+                </div>
+                <div className="text-[13.5px] text-[#7d7064] leading-relaxed mt-1.5">
+                  {point.body}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Built with you */}
+      <div className="border-t border-[#f1e8db] bg-[#faf3ea]">
+        <div className="max-w-[640px] mx-auto w-full px-4 sm:px-5 md:px-10 py-12 text-center">
+          <h2 className="font-['Plus_Jakarta_Sans'] text-xl sm:text-2xl font-extrabold text-[#2c2622] tracking-tight mb-3">
+            Built with you
+          </h2>
+          <p className="text-[14.5px] sm:text-[15px] text-[#6f6256] leading-relaxed">
+            InputMatter is still early. We won't cover everything your business needs on day one —
+            but you know your business better than we ever could. We'd rather build the next thing
+            together with you than guess at it alone.
+          </p>
+          <button
+            type="button"
+            onClick={() => setContactCategory("feature-request")}
+            className="inline-block mt-5 text-sm font-semibold text-[#b1603a] hover:text-[#2c2622] transition-colors"
+          >
+            Tell us what you need →
+          </button>
+        </div>
+      </div>
+
+      {/* What we're building toward */}
+      <div className="max-w-[1120px] mx-auto w-full px-4 sm:px-5 md:px-10 py-10">
+        <div className="text-center mb-8">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#b1603a] bg-[#f6e7dc] rounded-full px-3.5 py-1.5 mb-4">
+            Roadmap — not yet available
+          </span>
+          <h2 className="font-['Plus_Jakarta_Sans'] text-xl sm:text-2xl font-extrabold text-[#2c2622] tracking-tight">
+            What we're building toward
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {ROADMAP.map((item) => (
+            <div key={item.title} className="border border-dashed border-[#e7dccd] rounded-2xl p-6">
+              <div className="font-['Plus_Jakarta_Sans'] font-bold text-[#2c2622] text-[15.5px]">
+                {item.title}
+              </div>
+              <div className="text-[13.5px] text-[#7d7064] leading-relaxed mt-1.5">
+                {item.body}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Closing CTA */}
+      <div className="border-t border-[#f1e8db]">
+        <div className="max-w-[640px] mx-auto w-full px-4 sm:px-5 md:px-10 py-14 text-center">
+          <h2 className="font-['Plus_Jakarta_Sans'] text-xl sm:text-2xl font-extrabold text-[#2c2622] tracking-tight mb-6">
+            Ready to hear what your customers really think?
+          </h2>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              to="/register"
+              className="w-full sm:w-auto text-center bg-[#d9764a] text-white rounded-xl px-6 py-4 text-[15.5px] font-bold shadow-[0_12px_24px_-10px_rgba(217,118,74,0.65)] hover:bg-[#d9764a]/90 transition-colors"
+            >
+              Get started free
+            </Link>
+            <button
+              type="button"
+              onClick={() => setContactCategory("book-demo")}
+              className="w-full sm:w-auto text-center bg-white text-[#2c2622] border border-[#e7dccd] rounded-xl px-6 py-4 text-[15.5px] font-semibold hover:bg-[#faf3ea] transition-colors"
+            >
+              Book a Demo
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <SiteFooter />
+
+      {contactCategory && (
+        <ContactModal initialCategory={contactCategory} onClose={() => setContactCategory(null)} />
+      )}
+    </div>
+  );
+}
