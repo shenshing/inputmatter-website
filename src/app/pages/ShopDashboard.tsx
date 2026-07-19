@@ -20,6 +20,8 @@ import { PLANS, PLAN_ORDER, comparePlans, type PlanId } from "../lib/plans";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import StarRating from "../components/StarRating";
+import FeedbackPhotosCell from "../components/FeedbackPhotosCell";
 
 interface Shop {
   id: number;
@@ -36,6 +38,8 @@ interface Feedback {
   shop: Shop | null;
   created_at: string;
   source: string | null;
+  rating: number | null;
+  image_urls: string[] | null;
 }
 
 type Period = "7d" | "30d" | "90d" | "1y" | "2y" | "3y" | "4y" | "5y" | "all";
@@ -1067,14 +1071,14 @@ function ShopDashboardContent({
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[#f5f3f0]">
-                  {["Description", "Categories", "Source", "Date"].map((h) => (
+                  {["Description", "Categories", "Rating", "Photos", "Source", "Date"].map((h) => (
                     <th key={h} className="text-left px-6 py-3 text-[#adadad] text-[11px] font-medium uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {visibleFeed.length === 0 ? (
-                  <tr><td colSpan={4} className="text-center py-16 text-[#adadad] text-sm">No feedback for this period yet.</td></tr>
+                  <tr><td colSpan={6} className="text-center py-16 text-[#adadad] text-sm">No feedback for this period yet.</td></tr>
                 ) : (
                   visibleFeed.map((fb, i) => (
                     <tr key={fb.id} className={`hover:bg-[#faf8f6] transition-colors ${i < visibleFeed.length - 1 ? "border-b border-[#f8f6f3]" : ""}`}>
@@ -1092,6 +1096,16 @@ function ShopDashboardContent({
                             ) : null;
                           })}
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {fb.rating != null ? (
+                          <StarRating value={fb.rating} className="text-[11px]" />
+                        ) : (
+                          <span className="text-[#c9b9a6] text-sm">—</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <FeedbackPhotosCell imageUrls={fb.image_urls} />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span

@@ -14,10 +14,10 @@ export default function AboutModal({ onClose, onContactClick }: AboutModalProps)
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-[#fdf8f2] rounded-[28px] shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="bg-[#fdf8f2] rounded-[28px] shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
 
         {/* Header */}
         <div className="px-8 pt-8 pb-6 border-b border-[#f0ede8]">

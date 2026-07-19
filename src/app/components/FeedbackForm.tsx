@@ -1,8 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router";
+import { Store } from "lucide-react";
 import { useTelegram } from "../hooks/useTelegram";
-import imgImage from "../../imports/FigmaDesignScreenshot20260605At15232PmPng/28357547b5ae9e92b039165b7889478b0aca3d3c.png";
-import imgImage1 from "../../imports/FigmaDesignScreenshot20260605At15232PmPng/f3562cb31554f0340112f60e7e18b99b2a0775e9.png";
+import { usePublicFeedback } from "../hooks/usePublicFeedback";
+import StarRating from "./StarRating";
+import PhotoUpload from "./PhotoUpload";
+import PublicFeedbackList from "./PublicFeedbackList";
+import shopAltImage from "../../assets/shop-alt.png";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
@@ -16,6 +20,7 @@ const categories = [
 interface Shop {
   id: number;
   name: string;
+  logo_url: string | null;
 }
 
 export default function FeedbackForm() {
@@ -27,11 +32,34 @@ export default function FeedbackForm() {
   const [shopInput, setShopInput] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [description, setDescription] = useState("");
+  const [rating, setRating] = useState(0);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  // Bumped whenever the form fully resets (cancel or successful submit) to
+  // force PhotoUpload to remount — clearing its own internal error/uploading
+  // state, which otherwise isn't reachable from here.
+  const [photoResetKey, setPhotoResetKey] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"feedback" | "feed">("feedback");
+  const [feedRefreshKey, setFeedRefreshKey] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const handleSubmitRef = useRef<() => void>(() => {});
+
+  const {
+    items: feedItems,
+    total: feedTotal,
+    page: feedPage,
+    totalPages: feedTotalPages,
+    loading: feedLoading,
+    setPage: setFeedPage,
+  } = usePublicFeedback(selectedShop?.id ?? null, feedRefreshKey);
+  const feedScrollRef = useRef<HTMLDivElement>(null);
+
+  // Jump back to the top of the scrollable feed column whenever the page changes.
+  useEffect(() => {
+    feedScrollRef.current?.scrollTo({ top: 0 });
+  }, [feedPage]);
 
   useEffect(() => {
     fetch(`${API_URL}/app-visitors`, {
@@ -144,6 +172,9 @@ export default function FeedbackForm() {
     setSelectedCategories([]);
     setSelectedShop(null);
     setShopInput("");
+    setRating(0);
+    setImageUrls([]);
+    setPhotoResetKey((k) => k + 1);
     setSubmitError(null);
     setSubmitSuccess(false);
   };
@@ -176,6 +207,8 @@ export default function FeedbackForm() {
         body: JSON.stringify({
           description: description.trim(),
           categories: selectedCategories,
+          ...(rating > 0 ? { rating } : {}),
+          ...(imageUrls.length > 0 ? { imageUrls } : {}),
           ...(selectedShop
             ? { shopId: selectedShop.id }
             : { shopName: shopInput.trim() }),
@@ -187,11 +220,22 @@ export default function FeedbackForm() {
         throw new Error("Something went wrong. Please try again.");
       }
 
+      const saved = await res.json();
+
       setSubmitSuccess(true);
       setDescription("");
       setSelectedCategories([]);
-      setSelectedShop(null);
-      setShopInput("");
+      setRating(0);
+      setImageUrls([]);
+      setPhotoResetKey((k) => k + 1);
+      // Keep the shop selected (and resolve a just-typed shop name to the
+      // real shop record) so the feed on the right stays put and picks up
+      // what was just submitted, instead of resetting to "no shop".
+      if (saved.shop) {
+        setSelectedShop(saved.shop);
+        setShopInput("");
+      }
+      setFeedRefreshKey((k) => k + 1);
 
       if (isTelegram && webApp) {
         webApp.MainButton.hideProgress();
@@ -209,174 +253,269 @@ export default function FeedbackForm() {
     }
   };
 
+  const ratingLabel = rating ? `${rating}/5` : "tap to rate";
+  const headerShopName = selectedShop ? selectedShop.name : "any shop or restaurant";
+
+  const tabButtonClass = (active: boolean) =>
+    `flex-1 text-center text-[12px] font-bold py-2 px-2 rounded-full transition-colors ${
+      active ? "bg-white text-[#2c2622] shadow-sm" : "bg-transparent text-[#6f6256]"
+    }`;
+
   return (
     <div
-      className="relative w-full min-h-screen bg-[#fdf8f2] overflow-hidden"
+      className={`relative w-full bg-[#fdf8f2] ${isTelegram ? "min-h-screen" : ""}`}
       style={{ fontFamily: "'Hanken Grotesk', system-ui, sans-serif" }}
     >
-      {/* Background Images */}
-      <div className="absolute inset-0 pointer-events-none hidden md:block">
-        <div className="absolute right-0 top-0 w-full md:w-[888px] h-full">
-          <img
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-            src={imgImage}
-          />
-          <img
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-            src={imgImage1}
-          />
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className={`relative z-10 max-w-[888px] mx-auto px-4 md:px-10 py-8 md:py-12 ${isTelegram ? "pb-28" : ""}`}>
+      <div className={`relative z-10 max-w-[1200px] mx-auto px-4 md:px-10 py-8 md:py-12 ${isTelegram ? "pb-8" : ""}`}>
 
         {/* Header */}
-        <div className="mb-8 md:mb-12">
-          <h1 className="font-normal text-[#212120] text-2xl md:text-[45px] leading-normal md:leading-[49.727px]">
+        <div>
+          <h1 className="font-normal text-[#212120] text-[19px] md:text-[32px] leading-[1.3] md:leading-[1.25]">
             Share a thought and give us a chance.
           </h1>
-          <p className="font-normal text-[#696b63] text-base md:text-[24px] leading-normal md:leading-[26.266px] mt-4">
-            Leave feedback for any shop or restaurant — owners read every message.
+          <p className="font-normal text-[#696b63] text-xs md:text-[15.5px] leading-normal mt-1.5 md:mt-2.5">
+            Leave feedback for {headerShopName} — owners read every message.
           </p>
         </div>
 
         {/* Success banner */}
         {submitSuccess && (
-          <div className="mb-6 bg-[#e8f5e9] border border-[#a5d6a7] rounded-[20px] px-6 py-4 text-[#2e7d32] text-base md:text-[18px]">
+          <div className="mt-6 bg-[#e8f5e9] border border-[#a5d6a7] rounded-2xl px-6 py-4 text-[#2e7d32] text-sm md:text-base">
             Thank you! Your feedback has been shared.
           </div>
         )}
 
-        {/* Description Text Area */}
-        <div className="mb-6 md:mb-8">
-          <div className="bg-white border border-[#f1e7d9] rounded-[28px] p-6 md:p-8 relative hover:scale-105 hover:shadow-lg transition-all duration-200">
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe your feeling..."
-              className="w-full bg-transparent border-none outline-none resize-none font-normal text-[#212120] placeholder:text-[#adadad] text-lg md:text-[22px] min-h-[120px] md:min-h-[140px]"
-              maxLength={500}
-            />
-            <div className="absolute bottom-4 right-6 text-[#7e7f78] text-sm md:text-[17px]">
-              {description.length}/500
-            </div>
-          </div>
+        {/* Mobile segmented tabs — desktop shows the form and feed side by side instead */}
+        <div className="md:hidden flex bg-[#f1e7d9] rounded-full p-[3px] mt-4">
+          <button type="button" onClick={() => setMobileTab("feedback")} className={tabButtonClass(mobileTab === "feedback")}>
+            Leave feedback
+          </button>
+          <button type="button" onClick={() => setMobileTab("feed")} className={tabButtonClass(mobileTab === "feed")}>
+            What others say
+            <span className="ml-1.5 text-[9px] bg-[#ac7f5e] text-white rounded-full px-1.5 py-0.5">{feedTotal}</span>
+          </button>
         </div>
 
-        {/* Category Tags */}
-        <div className="mb-6 md:mb-8">
-          <div className="bg-white border border-[#f1e7d9] rounded-[29px] p-6 md:p-8 transition-all duration-200 hover:scale-105 hover:shadow-lg has-[button:hover]:scale-100 has-[button:hover]:shadow-none">
-            <p className="font-bold text-[#adadad] text-base md:text-[20px] mb-4 md:mb-6">
-              Select a category tag
-            </p>
-            <div className="flex flex-wrap gap-2 md:gap-3">
-              {categories.map((category) => {
-                const isSelected = selectedCategories.includes(category.id);
-                return (
-                  <button
-                    key={category.id}
-                    onClick={() => toggleCategory(category.id)}
-                    className={`
-                      ${isSelected ? "bg-[#e8a882] border-[#c8845a]" : "bg-[#fef7f2] border-[#f5d8c8]"}
-                      border-2 border-dashed rounded-[30px]
-                      px-4 md:px-6 py-2 md:py-3
-                      font-normal text-[#3a1834] text-base md:text-[24px]
-                      hover:scale-105 hover:shadow-lg transition-all duration-200
-                      whitespace-nowrap
-                    `}
-                  >
-                    {category.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        <div className="mt-4 md:mt-5 md:flex md:gap-8 md:items-start">
 
-        {/* Shop Name Input */}
-        <div className="mb-6 md:mb-8 relative" ref={dropdownRef}>
-          <div className="bg-white border border-[#f1e7d9] rounded-[26px] px-6 md:px-8 py-5 md:py-6 relative hover:scale-105 hover:shadow-lg transition-all duration-200">
-            <input
-              type="text"
-              value={selectedShop ? selectedShop.name : shopInput}
-              onChange={(e) => {
-                setShopInput(e.target.value);
-                setSelectedShop(null);
-                setIsDropdownOpen(true);
-              }}
-              onFocus={() => setIsDropdownOpen(true)}
-              onKeyDown={(e) => e.key === 'Escape' && setIsDropdownOpen(false)}
-              placeholder="Choose the shop"
-              className="w-full bg-transparent border-none outline-none font-normal text-[#333] placeholder:text-[#aaa] text-lg md:text-[25px] pr-8"
-            />
-            <svg
-              className="absolute right-6 md:right-8 top-1/2 -translate-y-1/2 pointer-events-none"
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M5 7.5L10 12.5L15 7.5"
-                stroke="#aaa"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            {isDropdownOpen && filteredShops.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-[20px] shadow-lg max-h-[240px] overflow-y-auto z-50">
-                {filteredShops.map((shop) => (
-                  <button
-                    key={shop.id}
-                    onClick={() => handleShopSelect(shop)}
-                    className="w-full text-left px-6 md:px-8 py-3 md:py-4 hover:bg-[#fef7f2] transition-colors font-normal text-[#333] text-base md:text-[20px] first:rounded-t-[20px] last:rounded-b-[20px]"
-                  >
-                    {shop.name}
-                  </button>
-                ))}
+          {/* ===== Form column ===== */}
+          <div className={`${mobileTab === "feed" ? "hidden" : "block"} md:block md:flex-[1.5] md:min-w-0`}>
+
+            {/* Description + shop logo */}
+            <div className="flex gap-2.5 md:gap-4 items-stretch">
+              <div className="flex-1 min-w-0 bg-white border border-[#f1e7d9] rounded-[18px] md:rounded-[22px] p-4 md:px-5 md:py-[18px] relative">
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Describe your feeling..."
+                  className="w-full bg-transparent border-none outline-none resize-none font-normal text-[#212120] placeholder:text-[#adadad] text-sm md:text-base min-h-[60px] md:min-h-[84px]"
+                  maxLength={500}
+                />
+                <div className="text-right text-[11px] md:text-xs text-[#7e7f78] mt-1">
+                  {description.length}/500
+                </div>
+              </div>
+              <div className="flex-none w-[92px] md:w-[140px] bg-white border border-[#f1e7d9] rounded-[18px] md:rounded-[22px] p-2.5 md:p-3.5 flex flex-col items-center justify-center gap-1.5 md:gap-2">
+                {selectedShop ? (
+                  <img
+                    src={selectedShop.logo_url ?? shopAltImage}
+                    alt={selectedShop.name}
+                    className="w-full aspect-square object-cover rounded-xl md:rounded-2xl"
+                  />
+                ) : (
+                  <div className="w-full aspect-square rounded-xl md:rounded-2xl border-2 border-dashed border-[#ece0d1] flex items-center justify-center text-[#c9b9a6]">
+                    <Store className="w-5 h-5 md:w-6 md:h-6" />
+                  </div>
+                )}
+                <div className="hidden md:block text-[10.5px] text-[#9a8c7c] text-center leading-tight line-clamp-2">
+                  {selectedShop ? selectedShop.name : "No shop selected"}
+                </div>
+              </div>
+            </div>
+
+            {/* Category Tags */}
+            <div className="mt-3.5 md:mt-4">
+              <div className="bg-white border border-[#f1e7d9] rounded-[18px] md:rounded-[22px] p-4 md:p-5">
+                <p className="font-bold text-[#adadad] text-xs md:text-sm mb-2.5 md:mb-3">
+                  Select a category tag
+                </p>
+                <div className="flex flex-wrap gap-1.5 md:gap-2">
+                  {categories.map((category) => {
+                    const isSelected = selectedCategories.includes(category.id);
+                    return (
+                      <button
+                        key={category.id}
+                        onClick={() => toggleCategory(category.id)}
+                        className={`
+                          ${isSelected ? "bg-[#e8a882] border-[#c8845a]" : "bg-[#fef7f2] border-[#f5d8c8]"}
+                          border-2 border-dashed rounded-[30px]
+                          px-3 md:px-4 py-1.5 md:py-2
+                          font-normal text-[#3a1834] text-xs md:text-sm
+                          hover:scale-105 hover:shadow-lg transition-all duration-200
+                          whitespace-nowrap
+                        `}
+                      >
+                        {category.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Rating + Photo */}
+            <div className="flex gap-2.5 md:gap-4 mt-3.5 md:mt-4 items-stretch">
+              <div className="flex-1 bg-white border border-[#f1e7d9] rounded-[18px] md:rounded-[22px] p-3.5 md:p-5">
+                <div className="font-bold text-[#adadad] text-xs md:text-sm mb-2.5 md:mb-3">
+                  How was it? <span className="font-medium text-[#b1603a]">{ratingLabel}</span>
+                </div>
+                <StarRating value={rating} onChange={setRating} className="text-[17px] md:text-[28px]" />
+              </div>
+              <div className="flex-1 bg-white border border-[#f1e7d9] rounded-[18px] md:rounded-[22px] p-3.5 md:p-5">
+                <div className="font-bold text-[#adadad] text-xs md:text-sm mb-2.5 md:mb-3">
+                  <span className="md:hidden">Photos</span>
+                  <span className="hidden md:inline">Add photos</span>{" "}
+                  <span className="font-medium">(optional, up to 3)</span>
+                </div>
+                <PhotoUpload key={photoResetKey} imageUrls={imageUrls} onChange={setImageUrls} />
+              </div>
+            </div>
+
+            {/* Shop Name Input */}
+            <div className="mt-3.5 md:mt-4 relative" ref={dropdownRef}>
+              <div className="bg-white border border-[#f1e7d9] rounded-[18px] md:rounded-[22px] px-4 md:px-6 py-4 md:py-5 relative hover:scale-[1.02] hover:shadow-lg transition-all duration-200">
+                <input
+                  type="text"
+                  value={selectedShop ? selectedShop.name : shopInput}
+                  onChange={(e) => {
+                    setShopInput(e.target.value);
+                    setSelectedShop(null);
+                    setIsDropdownOpen(true);
+                  }}
+                  onFocus={() => setIsDropdownOpen(true)}
+                  onKeyDown={(e) => e.key === 'Escape' && setIsDropdownOpen(false)}
+                  placeholder="Choose the shop"
+                  className="w-full bg-transparent border-none outline-none font-normal text-[#333] placeholder:text-[#aaa] text-base md:text-lg pr-8"
+                />
+                <svg
+                  className="absolute right-4 md:right-6 top-1/2 -translate-y-1/2 pointer-events-none"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M5 7.5L10 12.5L15 7.5"
+                    stroke="#aaa"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                {isDropdownOpen && filteredShops.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-lg max-h-[240px] overflow-y-auto z-50">
+                    {filteredShops.map((shop) => (
+                      <button
+                        key={shop.id}
+                        onClick={() => handleShopSelect(shop)}
+                        className="w-full text-left px-4 md:px-6 py-3 hover:bg-[#fef7f2] transition-colors font-normal text-[#333] text-sm md:text-base first:rounded-t-2xl last:rounded-b-2xl"
+                      >
+                        {shop.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="font-bold text-[#b7b7b6] text-xs md:text-base mt-2.5 md:mt-3 leading-normal">
+                Examples: Tube Coffee (BKK), Brown Roastery TK
+              </p>
+              {!selectedShop && shopInput.trim().length >= 5 && (
+                <p className="text-[#ac7f5e] text-xs md:text-sm mt-2 leading-normal">
+                  Can&apos;t find your shop? &quot;{shopInput.trim()}&quot; will be saved as a new shop name.
+                </p>
+              )}
+            </div>
+
+            {/* Error message */}
+            {submitError && (
+              <p className="mt-3 text-red-500 text-sm px-2">
+                {submitError}
+              </p>
+            )}
+
+            {/* Action Buttons — hidden in Telegram (MainButton takes over) */}
+            {!isTelegram && (
+              <div className="space-y-2.5 md:space-y-3 mt-4">
+                <button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className="w-full bg-[#ac7f5e] rounded-[18px] md:rounded-[22px] py-[13px] md:py-4 font-bold text-[#33152e] text-sm md:text-[15.5px] hover:scale-[1.02] hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                >
+                  {isSubmitting ? "Sharing..." : "Share"}
+                </button>
+                <button
+                  onClick={handleCancel}
+                  className="w-full bg-[#fdf8f2] border border-[#cfcbc4] rounded-[18px] md:rounded-[22px] py-[13px] md:py-4 font-bold text-[#a2a2a1] text-sm md:text-[15.5px] hover:scale-[1.02] hover:shadow-lg transition-all duration-200"
+                >
+                  Cancel
+                </button>
               </div>
             )}
           </div>
-          <p className="font-bold text-[#b7b7b6] text-sm md:text-[20px] mt-3 md:mt-4 leading-normal md:leading-[22.344px]">
-            Examples: Tube Coffee (BKK), Brown Roastery TK
-          </p>
-          {!selectedShop && shopInput.trim().length >= 5 && (
-            <p className="text-[#ac7f5e] text-sm md:text-[16px] mt-2 leading-normal">
-              Can&apos;t find your shop? &quot;{shopInput.trim()}&quot; will be saved as a new shop name.
-            </p>
-          )}
-        </div>
 
-        {/* Error message */}
-        {submitError && (
-          <p className="mb-4 text-red-500 text-sm md:text-[17px] px-2">
-            {submitError}
-          </p>
-        )}
-
-        {/* Action Buttons — hidden in Telegram (MainButton takes over) */}
-        {!isTelegram && (
-          <div className="space-y-3 md:space-y-4">
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="w-full bg-[#ac7f5e] rounded-[26px] py-5 md:py-6 font-bold text-[#33152e] text-lg md:text-[23px] hover:scale-105 hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
-            >
-              {isSubmitting ? "Sharing..." : "Shared"}
-            </button>
-            <button
-              onClick={handleCancel}
-              className="w-full bg-[#fdf8f2] border border-[#9b9b9a] rounded-[29px] py-5 md:py-6 font-bold text-[#a2a2a1] text-lg md:text-[25px] hover:scale-105 hover:shadow-lg transition-all duration-200"
-            >
-              Cancel
-            </button>
+          {/* ===== Public feed column ===== */}
+          <div className={`${mobileTab === "feedback" ? "hidden" : "block"} md:block md:flex-1 md:min-w-[340px] mt-5 md:mt-0`}>
+            <div className="hidden md:flex items-baseline justify-between mb-3.5">
+              <div className="font-['Plus_Jakarta_Sans'] font-extrabold text-base text-[#2c2622]">
+                What others are saying
+              </div>
+              <div className="text-xs text-[#b1603a] bg-[#f6e7dc] rounded-full px-2.5 py-1 font-semibold">
+                {feedTotal} notes
+              </div>
+            </div>
+            <div ref={feedScrollRef} className="md:max-h-[640px] md:overflow-y-auto md:pr-0.5">
+              <PublicFeedbackList
+                items={feedItems}
+                loading={feedLoading}
+                emptyMessage={
+                  selectedShop
+                    ? "No public feedback yet — be the first to share!"
+                    : "Pick a shop above to see what others said."
+                }
+              />
+            </div>
+            {feedTotalPages > 1 && (
+              <div className="flex items-center justify-between mt-3">
+                <button
+                  type="button"
+                  onClick={() => setFeedPage((p) => Math.max(1, p - 1))}
+                  disabled={feedPage <= 1}
+                  className="text-xs font-semibold text-[#b1603a] px-3 py-1.5 rounded-full hover:bg-[#f6e7dc] transition-colors disabled:text-[#c9b9a6] disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                >
+                  ‹ Prev
+                </button>
+                <span className="text-xs text-[#9a8c7c]">
+                  Page {feedPage} of {feedTotalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setFeedPage((p) => Math.min(feedTotalPages, p + 1))}
+                  disabled={feedPage >= feedTotalPages}
+                  // mr-16 keeps this clear of the fixed floating nav buttons
+                  // pinned to the bottom-right corner on mobile — see App.tsx.
+                  // Those buttons are hidden entirely in Telegram (!isTelegram
+                  // in App.tsx), so there's nothing to dodge there — skip the
+                  // margin so Prev/Page/Next stay evenly spaced.
+                  className={`text-xs font-semibold text-[#b1603a] px-3 py-1.5 rounded-full hover:bg-[#f6e7dc] transition-colors disabled:text-[#c9b9a6] disabled:cursor-not-allowed disabled:hover:bg-transparent ${!isTelegram ? "mr-16 md:mr-0" : ""}`}
+                >
+                  Next ›
+                </button>
+              </div>
+            )}
           </div>
-        )}
+
+        </div>
       </div>
     </div>
   );
