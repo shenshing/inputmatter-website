@@ -14,6 +14,8 @@ import {
   isWithinInterval, parseISO, formatDistanceToNow,
   isAfter, subDays,
 } from "date-fns";
+import StarRating from "../components/StarRating";
+import FeedbackPhotosCell from "../components/FeedbackPhotosCell";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -30,6 +32,8 @@ interface Feedback {
   shop: Shop | null;
   created_at: string;
   source: string | null;
+  rating: number | null;
+  image_urls: string[] | null;
 }
 
 interface ContactSubmission {
@@ -552,14 +556,14 @@ function FeedbackTab({
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#f5f3f0]">
-                {["Shop", "Description", "Categories", "Source", "Date"].map((h) => (
+                {["Shop", "Description", "Categories", "Rating", "Photos", "Source", "Date"].map((h) => (
                   <th key={h} className="text-left px-6 py-3 text-[#adadad] text-[11px] font-medium uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {recentFeedback.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-16 text-[#adadad] text-sm">No feedback found</td></tr>
+                <tr><td colSpan={7} className="text-center py-16 text-[#adadad] text-sm">No feedback found</td></tr>
               ) : (
                 recentFeedback.map((fb, i) => (
                   <tr key={fb.id} className={`hover:bg-[#faf8f6] transition-colors ${i < recentFeedback.length - 1 ? "border-b border-[#f8f6f3]" : ""}`}>
@@ -577,6 +581,16 @@ function FeedbackTab({
                           </span>
                         ))}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {fb.rating != null ? (
+                        <StarRating value={fb.rating} className="text-[11px]" />
+                      ) : (
+                        <span className="text-[#c9b9a6] text-sm">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <FeedbackPhotosCell imageUrls={fb.image_urls} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
