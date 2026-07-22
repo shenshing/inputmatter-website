@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   MessageSquare, Store, Tag, Clock, RefreshCw,
-  TrendingUp, ArrowLeft, Inbox, Activity,
+  TrendingUp, ArrowLeft, Inbox, Activity, Eye, EyeOff,
 } from "lucide-react";
 import {
   format, subWeeks, startOfWeek, endOfWeek,
@@ -24,6 +24,15 @@ interface Shop {
   name: string;
 }
 
+// Richer shape returned by the super-admin-only /shops/admin endpoint —
+// every shop regardless of visibility, plus a feedback count each.
+interface AdminShop extends Shop {
+  plan: string;
+  is_public: boolean;
+  created_at: string;
+  feedbackCount: number;
+}
+
 interface Feedback {
   id: string;
   description: string;
@@ -34,6 +43,7 @@ interface Feedback {
   source: string | null;
   rating: number | null;
   image_urls: string[] | null;
+  is_public: boolean;
 }
 
 interface ContactSubmission {
@@ -97,7 +107,7 @@ const STATUS_OPTIONS: ContactStatus[] = [
   "pending", "following", "success", "fail", "no-reply", "feature-dev",
 ];
 
-type Tab = "feedback" | "contacts" | "visitors";
+type Tab = "feedback" | "shops" | "contacts" | "visitors";
 
 type Period = "7d" | "30d" | "90d" | "1y" | "2y" | "3y" | "4y" | "5y" | "all";
 
@@ -129,9 +139,9 @@ export default function Dashboard() {
 
   // Feedback state
   const [allFeedback, setAllFeedback] = useState<Feedback[]>([]);
-  const [shops, setShops] = useState<Shop[]>([]);
+  const [shops, setShops] = useState<AdminShop[]>([]);
   const [selectedShopId, setSelectedShopId] = useState<string>("all");
-  const [selectedPeriod, setSelectedPeriod] = useState<Period>("all");
+  const [selectedPeriod, setSelectedPeriod] = useState<Period>("30d");
   const [feedbackLoading, setFeedbackLoading] = useState(true);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [preciseDates, setPreciseDates] = useState<Set<string>>(new Set());
@@ -164,7 +174,7 @@ export default function Dashboard() {
     try {
       const [feedbackData, shopsData] = await Promise.all([
         apiFetch<Feedback[]>("/feedback"),
-        apiFetch<Shop[]>("/shops"),
+        apiFetch<AdminShop[]>("/shops/admin"),
       ]);
       setAllFeedback(feedbackData);
       setShops(shopsData);
@@ -340,6 +350,16 @@ export default function Dashboard() {
             </div>
           )}
 
+          {activeTab === "shops" && (
+            <button
+              onClick={fetchFeedback}
+              className="bg-[#efefef] rounded-[18px] p-2.5 text-[#696b63] hover:text-[#212120] hover:bg-[#e4e4e0] transition-colors shrink-0"
+              title="Refresh"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          )}
+
           {activeTab === "contacts" && (
             <button
               onClick={fetchContacts}
@@ -362,7 +382,7 @@ export default function Dashboard() {
 
         {/* Tab bar */}
         <div className="px-6 md:px-10 flex gap-0">
-          {(["feedback", "contacts", "visitors"] as Tab[]).map((tab) => (
+          {(["feedback", "shops", "contacts", "visitors"] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
@@ -374,6 +394,8 @@ export default function Dashboard() {
             >
               {tab === "feedback" ? (
                 <><MessageSquare className="w-3.5 h-3.5" /> Feedback</>
+              ) : tab === "shops" ? (
+                <><Store className="w-3.5 h-3.5" /> Shops</>
               ) : tab === "contacts" ? (
                 <><Inbox className="w-3.5 h-3.5" /> Contacts {contacts.length > 0 && <span className="bg-[#ac7f5e] text-white text-[10px] font-semibold rounded-full px-1.5 py-0.5 leading-none">{contacts.length}</span>}</>
               ) : (
@@ -402,6 +424,26 @@ export default function Dashboard() {
           recentFeedback={recentFeedback}
           preciseDates={preciseDates}
           togglePreciseDate={togglePreciseDate}
+          onVisibilityChange={(id, isPublic) =>
+            setAllFeedback((prev) =>
+              prev.map((f) => (f.id === id ? { ...f, is_public: isPublic } : f))
+            )
+          }
+        />
+      )}
+
+      {/* ── Shops tab ── */}
+      {activeTab === "shops" && (
+        <ShopsTab
+          loading={feedbackLoading}
+          error={feedbackError}
+          onRetry={fetchFeedback}
+          shops={shops}
+          onVisibilityChange={(id, isPublic) =>
+            setShops((prev) =>
+              prev.map((s) => (s.id === id ? { ...s, is_public: isPublic } : s))
+            )
+          }
         />
       )}
 
@@ -439,7 +481,7 @@ export default function Dashboard() {
 
 function FeedbackTab({
   loading, error, onRetry, totalCount, telegramCount, selectedPeriod, activeShopsCount, totalShopsCount, topCategory,
-  latestFeedback, categoryData, weeklyData, recentFeedback, preciseDates, togglePreciseDate,
+  latestFeedback, categoryData, weeklyData, recentFeedback, preciseDates, togglePreciseDate, onVisibilityChange,
 }: {
   loading: boolean;
   error: string | null;
@@ -456,7 +498,25 @@ function FeedbackTab({
   recentFeedback: Feedback[];
   preciseDates: Set<string>;
   togglePreciseDate: (id: string) => void;
+  onVisibilityChange: (id: string, isPublic: boolean) => void;
 }) {
+  const [updatingVisibility, setUpdatingVisibility] = useState<Set<string>>(new Set());
+
+  async function handleVisibilityToggle(id: string, nextIsPublic: boolean) {
+    setUpdatingVisibility((prev) => new Set(prev).add(id));
+    try {
+      await apiFetch(`/feedback/${id}/visibility`, {
+        method: "PATCH",
+        body: JSON.stringify({ isPublic: nextIsPublic }),
+      });
+      onVisibilityChange(id, nextIsPublic);
+    } catch {
+      // leave as-is — parent state didn't change, so the UI reflects the unchanged value
+    } finally {
+      setUpdatingVisibility((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
@@ -556,16 +616,18 @@ function FeedbackTab({
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#f5f3f0]">
-                {["Shop", "Description", "Categories", "Rating", "Photos", "Source", "Date"].map((h) => (
+                {["Shop", "Description", "Categories", "Rating", "Photos", "Source", "Date", "Visibility"].map((h) => (
                   <th key={h} className="text-left px-6 py-3 text-[#adadad] text-[11px] font-medium uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {recentFeedback.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-16 text-[#adadad] text-sm">No feedback found</td></tr>
+                <tr><td colSpan={8} className="text-center py-16 text-[#adadad] text-sm">No feedback found</td></tr>
               ) : (
-                recentFeedback.map((fb, i) => (
+                recentFeedback.map((fb, i) => {
+                const isSavingVisibility = updatingVisibility.has(fb.id);
+                return (
                   <tr key={fb.id} className={`hover:bg-[#faf8f6] transition-colors ${i < recentFeedback.length - 1 ? "border-b border-[#f8f6f3]" : ""}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-[#212120] text-sm font-medium">{fb.shop?.name ?? fb.shop_name}</span>
@@ -614,12 +676,154 @@ function FeedbackTab({
                         })()}
                       </button>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => handleVisibilityToggle(fb.id, !fb.is_public)}
+                        disabled={isSavingVisibility}
+                        className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full transition-colors disabled:opacity-50 disabled:cursor-wait ${
+                          fb.is_public
+                            ? "bg-[#f0faf4] text-[#3d8a5c] hover:bg-[#e0f5e8]"
+                            : "bg-[#fff0f0] text-[#c0392b] hover:bg-[#ffe0e0]"
+                        }`}
+                        title={fb.is_public ? "Visible in the public feed — click to ban" : "Banned from the public feed — click to restore"}
+                      >
+                        {fb.is_public ? <><Eye className="w-3 h-3" /> Public</> : <><EyeOff className="w-3 h-3" /> Banned</>}
+                      </button>
+                    </td>
                   </tr>
-                ))
+                );
+              })
               )}
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Shops tab ─────────────────────────────────────────────────────────────────
+
+function ShopsTab({
+  loading, error, onRetry, shops, onVisibilityChange,
+}: {
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  shops: AdminShop[];
+  onVisibilityChange: (id: number, isPublic: boolean) => void;
+}) {
+  const [updating, setUpdating] = useState<Set<number>>(new Set());
+
+  async function handleToggle(id: number, nextIsPublic: boolean) {
+    setUpdating((prev) => new Set(prev).add(id));
+    try {
+      await apiFetch(`/shops/${id}/visibility`, {
+        method: "PATCH",
+        body: JSON.stringify({ isPublic: nextIsPublic }),
+      });
+      onVisibilityChange(id, nextIsPublic);
+    } catch {
+      // leave as-is — parent state didn't change, so the UI reflects the unchanged value
+    } finally {
+      setUpdating((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <p className="text-[#696b63] text-lg animate-pulse">Loading…</p>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-32 px-6">
+        <div className="bg-[#efefef] rounded-[26px] p-8 text-center max-w-md">
+          <p className="text-[#212120] text-lg mb-2 font-medium">Could not load shops</p>
+          <p className="text-[#696b63] text-sm mb-6">{error}</p>
+          <button onClick={onRetry} className="bg-[#ac7f5e] text-white rounded-[20px] px-6 py-3 font-bold hover:opacity-90 transition-opacity">Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  const publicCount = shops.filter((s) => s.is_public).length;
+  const hiddenCount = shops.length - publicCount;
+
+  return (
+    <div className="px-6 md:px-10 py-8 space-y-6 max-w-screen-xl mx-auto">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <KpiCard icon={<Store className="w-5 h-5 text-[#696b63]" />} iconBg="bg-[#f2f4f2]" label="Total Shops" value={shops.length} />
+        <KpiCard icon={<Eye className="w-5 h-5 text-[#3d8a5c]" />} iconBg="bg-[#f0faf4]" label="Public" value={publicCount} sub="Visible to visitors" />
+        <KpiCard icon={<EyeOff className="w-5 h-5 text-[#c0392b]" />} iconBg="bg-[#fff0f0]" label="Hidden" value={hiddenCount} sub="Hidden from listings" />
+      </div>
+
+      {/* Shops table */}
+      <div className="bg-white border border-[#e8e8e4] rounded-[24px] overflow-hidden">
+        <div className="px-6 py-5 border-b border-[#f0ede8] flex items-center gap-2.5">
+          <div className="bg-[#fef7f2] rounded-[10px] p-2"><Store className="w-4 h-4 text-[#ac7f5e]" /></div>
+          <h2 className="text-[#212120] text-sm font-medium">All Shops</h2>
+          <span className="ml-auto text-[#adadad] text-xs">{shops.length} shop{shops.length === 1 ? "" : "s"}</span>
+        </div>
+
+        {shops.length === 0 ? (
+          <div className="py-20 text-center text-[#adadad] text-sm">No shops yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#f5f3f0]">
+                  {["Shop", "Plan", "Feedback", "Created", "Visibility"].map((h) => (
+                    <th key={h} className="text-left px-6 py-3 text-[#adadad] text-[11px] font-medium uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {shops.map((shop, i) => {
+                  const isSaving = updating.has(shop.id);
+                  return (
+                    <tr key={shop.id} className={`hover:bg-[#faf8f6] transition-colors ${i < shops.length - 1 ? "border-b border-[#f8f6f3]" : ""}`}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-[#212120] text-sm font-medium">{shop.name}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-[#696b63] text-sm capitalize">{shop.plan}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-[#696b63] text-sm">{shop.feedbackCount}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-[#adadad] text-sm">
+                          {(() => {
+                            try { return formatDistanceToNow(parseISO(shop.created_at), { addSuffix: true }); }
+                            catch { return "—"; }
+                          })()}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => handleToggle(shop.id, !shop.is_public)}
+                          disabled={isSaving}
+                          className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full transition-colors disabled:opacity-50 disabled:cursor-wait ${
+                            shop.is_public
+                              ? "bg-[#f0faf4] text-[#3d8a5c] hover:bg-[#e0f5e8]"
+                              : "bg-[#fff0f0] text-[#c0392b] hover:bg-[#ffe0e0]"
+                          }`}
+                          title={shop.is_public ? "Visible to visitors — click to hide" : "Hidden from visitors — click to make public"}
+                        >
+                          {shop.is_public ? <><Eye className="w-3 h-3" /> Public</> : <><EyeOff className="w-3 h-3" /> Hidden</>}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
