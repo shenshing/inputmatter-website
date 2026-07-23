@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router";
-import { Store } from "lucide-react";
+import { Store, MapPin } from "lucide-react";
 import { useTelegram } from "../hooks/useTelegram";
 import { usePublicFeedback } from "../hooks/usePublicFeedback";
 import StarRating from "./StarRating";
@@ -21,7 +21,11 @@ interface Shop {
   id: number;
   name: string;
   logo_url: string | null;
+  google_map_url: string | null;
 }
+
+// Auto flip a flipped shop card back to its logo after this long.
+const FLIP_BACK_DELAY_MS = 5000;
 
 export default function FeedbackForm() {
   const [searchParams] = useSearchParams();
@@ -43,6 +47,7 @@ export default function FeedbackForm() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [mobileTab, setMobileTab] = useState<"feedback" | "feed">("feedback");
   const [feedRefreshKey, setFeedRefreshKey] = useState(0);
+  const [isShopCardFlipped, setIsShopCardFlipped] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const handleSubmitRef = useRef<() => void>(() => {});
 
@@ -60,6 +65,19 @@ export default function FeedbackForm() {
   useEffect(() => {
     feedScrollRef.current?.scrollTo({ top: 0 });
   }, [feedPage]);
+
+  // Reset to the logo face whenever the selected shop changes.
+  useEffect(() => {
+    setIsShopCardFlipped(false);
+  }, [selectedShop?.id]);
+
+  // Clicking the logo flips to the links face; it only ever flips back on
+  // its own after a few seconds — there's no click-to-flip-back.
+  useEffect(() => {
+    if (!isShopCardFlipped) return;
+    const timer = setTimeout(() => setIsShopCardFlipped(false), FLIP_BACK_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [isShopCardFlipped]);
 
   useEffect(() => {
     fetch(`${API_URL}/app-visitors`, {
@@ -317,11 +335,52 @@ export default function FeedbackForm() {
               </div>
               <div className="flex-none w-[92px] md:w-[140px] bg-white border border-[#f1e7d9] rounded-[18px] md:rounded-[22px] p-2.5 md:p-3.5 flex flex-col items-center justify-center gap-1.5 md:gap-2">
                 {selectedShop ? (
-                  <img
-                    src={selectedShop.logo_url ?? shopAltImage}
-                    alt={selectedShop.name}
-                    className="w-full aspect-square object-cover rounded-xl md:rounded-2xl"
-                  />
+                  <div className="relative w-full aspect-square [perspective:900px]">
+                    <div
+                      className="relative w-full h-full [transform-style:preserve-3d] transition-transform duration-500 ease-in-out"
+                      style={{ transform: isShopCardFlipped ? "rotateY(180deg)" : "rotateY(0deg)" }}
+                    >
+                      {/* Front — logo, click to reveal links */}
+                      <button
+                        type="button"
+                        onClick={() => setIsShopCardFlipped(true)}
+                        aria-label={`Show links for ${selectedShop.name}`}
+                        style={{ pointerEvents: isShopCardFlipped ? "none" : "auto" }}
+                        className="absolute inset-0 w-full h-full [backface-visibility:hidden] rounded-xl md:rounded-2xl overflow-hidden cursor-pointer"
+                      >
+                        <img
+                          src={selectedShop.logo_url ?? shopAltImage}
+                          alt={selectedShop.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+
+                      {/* Back — Google Maps */}
+                      <div
+                        style={{
+                          transform: "rotateY(180deg)",
+                          pointerEvents: isShopCardFlipped ? "auto" : "none",
+                        }}
+                        className="absolute inset-0 w-full h-full [backface-visibility:hidden] rounded-xl md:rounded-2xl bg-[#fef7f2] border border-[#f1e7d9] flex items-stretch p-1 md:p-1.5"
+                      >
+                        {selectedShop.google_map_url ? (
+                          <a
+                            href={selectedShop.google_map_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="View on Google Maps"
+                            className="flex-1 flex items-center justify-center rounded-lg md:rounded-xl bg-white hover:bg-[#f6e7dc] active:scale-95 transition-all text-[#b1603a]"
+                          >
+                            <MapPin className="w-4 h-4 md:w-5 md:h-5" />
+                          </a>
+                        ) : (
+                          <div className="flex-1 flex items-center justify-center text-center text-[8.5px] md:text-[9.5px] text-[#c9b9a6] px-1 leading-tight">
+                            No links yet
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div className="w-full aspect-square rounded-xl md:rounded-2xl border-2 border-dashed border-[#ece0d1] flex items-center justify-center text-[#c9b9a6]">
                     <Store className="w-5 h-5 md:w-6 md:h-6" />

@@ -8,7 +8,7 @@ import {
 import {
   Store, MessageSquare, TrendingUp, TrendingDown, Minus,
   ArrowLeft, RefreshCw, Utensils, Users, Leaf, HelpCircle, ChevronDown,
-  QrCode, Copy, Share2, X, Check, Info, Send,
+  QrCode, Copy, Share2, X, Check, Info, Send, Instagram, Facebook,
 } from "lucide-react";
 import { Tooltip as UITooltip, TooltipTrigger as UITooltipTrigger, TooltipContent as UITooltipContent } from "../components/ui/tooltip";
 import {
@@ -22,6 +22,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import StarRating from "../components/StarRating";
 import FeedbackPhotosCell from "../components/FeedbackPhotosCell";
+import TikTokIcon from "../components/TikTokIcon";
 
 interface Shop {
   id: number;
@@ -426,10 +427,22 @@ function QRCodeModal({ shop, onClose }: { shop: Shop; onClose: () => void }) {
 
 const GOOGLE_MAP_PREFIX = "https://maps.app.goo.gl/";
 
+// The only platforms a shop can attach a link for — keep in sync with
+// SOCIAL_PLATFORMS in api/src/shop/dto/social-link.dto.ts.
+const SOCIAL_PLATFORMS = [
+  { key: "tiktok", label: "TikTok", Icon: TikTokIcon },
+  { key: "instagram", label: "Instagram", Icon: Instagram },
+  { key: "facebook", label: "Facebook", Icon: Facebook },
+] as const;
+
+type SocialLinkValues = Record<(typeof SOCIAL_PLATFORMS)[number]["key"], string>;
+
 function RegisterShopForm({ onRegistered }: { onRegistered: (shop: Shop) => void }) {
   const [name, setName] = useState("");
   const [googleMapUrl, setGoogleMapUrl] = useState("");
   const [googleMapUrlError, setGoogleMapUrlError] = useState<string | null>(null);
+  const [socialLinks, setSocialLinks] = useState<SocialLinkValues>({ tiktok: "", instagram: "", facebook: "" });
+  const [socialLinksError, setSocialLinksError] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("free");
   const [error, setError] = useState<string | null>(null);
   const [showDuplicatePopup, setShowDuplicatePopup] = useState(false);
@@ -443,6 +456,24 @@ function RegisterShopForm({ onRegistered }: { onRegistered: (shop: Shop) => void
     return null;
   }
 
+  function validateSocialLinks(links: SocialLinkValues): string | null {
+    for (const { key, label } of SOCIAL_PLATFORMS) {
+      const url = links[key].trim();
+      if (!url) continue;
+      try {
+        if (new URL(url).protocol !== "https:") return `${label} URL must start with https://`;
+      } catch {
+        return `Enter a valid ${label} URL.`;
+      }
+    }
+    return null;
+  }
+
+  function updateSocialLink(key: keyof SocialLinkValues, value: string) {
+    setSocialLinks((prev) => ({ ...prev, [key]: value }));
+    setSocialLinksError(null);
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -452,11 +483,20 @@ function RegisterShopForm({ onRegistered }: { onRegistered: (shop: Shop) => void
       setGoogleMapUrlError(urlErr);
       return;
     }
+    const socialErr = validateSocialLinks(socialLinks);
+    if (socialErr) {
+      setSocialLinksError(socialErr);
+      return;
+    }
 
     setLoading(true);
     try {
-      const body: Record<string, string> = { name, plan: selectedPlan };
+      const body: Record<string, unknown> = { name, plan: selectedPlan };
       if (googleMapUrl) body.google_map_url = googleMapUrl;
+      const filledSocialLinks = SOCIAL_PLATFORMS
+        .filter(({ key }) => socialLinks[key].trim())
+        .map(({ key }) => ({ name: key, social_link: socialLinks[key].trim() }));
+      if (filledSocialLinks.length > 0) body.social_link = filledSocialLinks;
 
       const shop = await apiFetch<Shop>("/shops", {
         method: "POST",
@@ -531,6 +571,32 @@ function RegisterShopForm({ onRegistered }: { onRegistered: (shop: Shop) => void
               />
               {googleMapUrlError && (
                 <p className="text-xs text-red-600">{googleMapUrlError}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Social links{" "}
+                <span className="text-[#adadad] font-normal">(optional)</span>
+              </Label>
+              <div className="space-y-2">
+                {SOCIAL_PLATFORMS.map(({ key, label, Icon }) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <div className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-[#fef7f2] text-[#ac7f5e]">
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <Input
+                      type="url"
+                      placeholder={`${label} URL`}
+                      value={socialLinks[key]}
+                      onChange={(e) => updateSocialLink(key, e.target.value)}
+                      className="flex-1"
+                    />
+                  </div>
+                ))}
+              </div>
+              {socialLinksError && (
+                <p className="text-xs text-red-600">{socialLinksError}</p>
               )}
             </div>
 
