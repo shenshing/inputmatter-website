@@ -21,7 +21,10 @@ interface Shop {
   id: number;
   name: string;
   logo_url: string | null;
-  google_map_url: string | null;
+  // Resolved, permanent google.com/maps/place/... URL — never link to the
+  // raw google_map_url short link directly, it's unreliable in some
+  // browsers (see shop.entity.ts on the backend for why).
+  google_map_long_url: string | null;
 }
 
 // Auto flip a flipped shop card back to its logo after this long.
@@ -363,9 +366,9 @@ export default function FeedbackForm() {
                         }}
                         className="absolute inset-0 w-full h-full [backface-visibility:hidden] rounded-xl md:rounded-2xl bg-[#fef7f2] border border-[#f1e7d9] flex items-stretch p-1 md:p-1.5"
                       >
-                        {selectedShop.google_map_url ? (
+                        {selectedShop.google_map_long_url ? (
                           <a
-                            href={selectedShop.google_map_url}
+                            href={selectedShop.google_map_long_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             title="View on Google Maps"
