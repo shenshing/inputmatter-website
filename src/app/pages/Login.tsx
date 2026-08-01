@@ -3,9 +3,12 @@ import { Link, useNavigate } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { apiFetch } from "../lib/api";
 import { PLANS, PLAN_ORDER, type PlanId } from "../lib/plans";
+import { SHOP_CATEGORIES, CATEGORY_LABELS, type ShopCategory } from "../lib/categories";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import { ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from "../components/ui/dropdown-menu";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -19,6 +22,7 @@ export default function Login() {
   const [loginLoading, setLoginLoading] = useState(false);
 
   const [shopName, setShopName] = useState("");
+  const [categories, setCategories] = useState<ShopCategory[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("free");
   const [shopLoading, setShopLoading] = useState(false);
   const [shopError, setShopError] = useState<string | null>(null);
@@ -59,15 +63,23 @@ export default function Login() {
     }
   }
 
+  function toggleCategory(category: ShopCategory) {
+    setCategories((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category],
+    );
+  }
+
   async function handleRegisterShop(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!shopName.trim()) return;
     setShopError(null);
     setShopLoading(true);
     try {
+      const body: Record<string, unknown> = { name: shopName.trim(), plan: selectedPlan };
+      if (categories.length > 0) body.categories = categories;
       await apiFetch("/shops", {
         method: "POST",
-        body: JSON.stringify({ name: shopName.trim(), plan: selectedPlan }),
+        body: JSON.stringify(body),
       });
       setShopSuccess(true);
       setShopName("");
@@ -203,6 +215,40 @@ export default function Login() {
                   minLength={2}
                   maxLength={100}
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>
+                  Categories{" "}
+                  <span className="text-[#212120]/40 font-normal">(optional)</span>
+                </Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between rounded-md border border-[#e8e8e4] bg-white px-3 py-1.5 h-9 text-sm text-left hover:border-[#d0ccc8] transition-colors"
+                    >
+                      <span className={categories.length > 0 ? "text-[#212120]" : "text-[#adadad]"}>
+                        {categories.length > 0
+                          ? categories.map((c) => CATEGORY_LABELS[c]).join(", ")
+                          : "Select categories"}
+                      </span>
+                      <ChevronDown className="w-4 h-4 text-[#696b63] shrink-0" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width)">
+                    {SHOP_CATEGORIES.map((category) => (
+                      <DropdownMenuCheckboxItem
+                        key={category}
+                        checked={categories.includes(category)}
+                        onSelect={(e) => e.preventDefault()}
+                        onCheckedChange={() => toggleCategory(category)}
+                      >
+                        {CATEGORY_LABELS[category]}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               {/* Plan selector */}

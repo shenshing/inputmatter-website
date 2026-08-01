@@ -11,12 +11,14 @@ import {
   QrCode, Copy, Share2, X, Check, Info, Send, Instagram, Facebook,
 } from "lucide-react";
 import { Tooltip as UITooltip, TooltipTrigger as UITooltipTrigger, TooltipContent as UITooltipContent } from "../components/ui/tooltip";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from "../components/ui/dropdown-menu";
 import {
   format, parseISO, formatDistanceToNow,
   subDays, isAfter, startOfMonth, endOfMonth, subMonths, isWithinInterval,
 } from "date-fns";
 import { apiFetch } from "../lib/api";
 import { PLANS, PLAN_ORDER, comparePlans, type PlanId } from "../lib/plans";
+import { SHOP_CATEGORIES, CATEGORY_LABELS, type ShopCategory } from "../lib/categories";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -29,6 +31,7 @@ interface Shop {
   name: string;
   ownerId: string | null;
   plan: PlanId;
+  categories: ShopCategory[];
 }
 
 interface Feedback {
@@ -228,6 +231,155 @@ function PlanChanger({
               </Button>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Categories editor ─────────────────────────────────────────────────────────
+// Additive only, by design: categories already on the shop are shown locked
+// (checked, not click-able) and can't be removed from here — see
+// ShopService#addCategories on the backend for the same rule enforced
+// server-side, not just hidden in this UI.
+
+function CategoriesEditor({
+  currentCategories,
+  onCategoriesAdded,
+}: {
+  currentCategories: ShopCategory[];
+  onCategoriesAdded: (categories: ShopCategory[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState<ShopCategory[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setPending([]);
+        setError(null);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  function togglePending(category: ShopCategory) {
+    setPending((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category],
+    );
+  }
+
+  async function confirmAdd() {
+    if (pending.length === 0) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await apiFetch("/shops/mine/categories", {
+        method: "PATCH",
+        body: JSON.stringify({ categories: pending }),
+      });
+      onCategoriesAdded(Array.from(new Set([...currentCategories, ...pending])));
+      setOpen(false);
+      setPending([]);
+    } catch (err: any) {
+      setError(err.message ?? "Failed to add categories.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const addable = SHOP_CATEGORIES.filter((c) => !currentCategories.includes(c));
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => { setOpen((o) => !o); setPending([]); setError(null); }}
+        className="flex items-center gap-1.5 bg-[#fef7f2] border border-[#f5d8c8] rounded-full px-3 py-1 text-xs font-medium text-[#ac7f5e] hover:bg-[#fdeee6] transition-colors"
+      >
+        {currentCategories.length > 0
+          ? currentCategories.map((c) => CATEGORY_LABELS[c]).join(", ")
+          : "Add categories"}
+        <ChevronDown className="w-3 h-3" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-2 left-0 w-64 bg-white border border-[#e8e8e4] rounded-2xl shadow-xl z-50 overflow-hidden">
+          <div className="p-3 space-y-2">
+            <div className="flex items-center gap-1.5">
+              <p className="text-[11px] font-medium text-[#adadad] uppercase tracking-wide">Categories</p>
+              <UITooltip>
+                <UITooltipTrigger asChild>
+                  <Info className="w-3 h-3 text-[#adadad] shrink-0 cursor-default" />
+                </UITooltipTrigger>
+                <UITooltipContent side="top" className="max-w-[180px] text-center text-[11px] leading-snug">
+                  Already-selected categories can't be removed here — contact InputMatter admin if you need one removed.
+                </UITooltipContent>
+              </UITooltip>
+            </div>
+
+            <div className="space-y-0.5">
+              {currentCategories.map((category) => (
+                <div
+                  key={category}
+                  className="flex items-center gap-2 rounded-xl px-3 py-2 bg-[#fef7f2] text-[#ac7f5e] text-sm cursor-default"
+                >
+                  <Check className="w-3.5 h-3.5 shrink-0" />
+                  {CATEGORY_LABELS[category]}
+                </div>
+              ))}
+              {addable.map((category) => {
+                const checked = pending.includes(category);
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => togglePending(category)}
+                    className={`w-full flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-left transition-colors ${
+                      checked
+                        ? "bg-[#f5f4f3] ring-1 ring-[#212120]/10 text-[#212120]"
+                        : "hover:bg-[#f9f8f7] text-[#696b63]"
+                    }`}
+                  >
+                    <span
+                      className={`w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center ${
+                        checked ? "bg-[#212120] border-[#212120]" : "border-[#d0ccc8]"
+                      }`}
+                    >
+                      {checked && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 8">
+                          <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    {CATEGORY_LABELS[category]}
+                  </button>
+                );
+              })}
+              {addable.length === 0 && (
+                <p className="text-xs text-[#adadad] px-3 py-2">All categories added.</p>
+              )}
+            </div>
+
+            {error && (
+              <p className="text-xs text-red-600 bg-red-50 rounded-md px-2 py-1.5">{error}</p>
+            )}
+
+            {pending.length > 0 && (
+              <Button
+                onClick={confirmAdd}
+                disabled={saving}
+                size="sm"
+                className="w-full bg-[#212120] hover:bg-[#212120]/90 text-white text-xs"
+              >
+                {saving ? "Saving…" : `Add ${pending.map((c) => CATEGORY_LABELS[c]).join(", ")}`}
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -443,6 +595,7 @@ function RegisterShopForm({ onRegistered }: { onRegistered: (shop: Shop) => void
   const [googleMapUrlError, setGoogleMapUrlError] = useState<string | null>(null);
   const [socialLinks, setSocialLinks] = useState<SocialLinkValues>({ tiktok: "", instagram: "", facebook: "" });
   const [socialLinksError, setSocialLinksError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<ShopCategory[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("free");
   const [error, setError] = useState<string | null>(null);
   const [showDuplicatePopup, setShowDuplicatePopup] = useState(false);
@@ -474,6 +627,12 @@ function RegisterShopForm({ onRegistered }: { onRegistered: (shop: Shop) => void
     setSocialLinksError(null);
   }
 
+  function toggleCategory(category: ShopCategory) {
+    setCategories((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category],
+    );
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -497,6 +656,7 @@ function RegisterShopForm({ onRegistered }: { onRegistered: (shop: Shop) => void
         .filter(({ key }) => socialLinks[key].trim())
         .map(({ key }) => ({ name: key, social_link: socialLinks[key].trim() }));
       if (filledSocialLinks.length > 0) body.social_link = filledSocialLinks;
+      if (categories.length > 0) body.categories = categories;
 
       const shop = await apiFetch<Shop>("/shops", {
         method: "POST",
@@ -552,6 +712,40 @@ function RegisterShopForm({ onRegistered }: { onRegistered: (shop: Shop) => void
                 minLength={2}
                 maxLength={100}
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Categories{" "}
+                <span className="text-[#adadad] font-normal">(optional)</span>
+              </Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between rounded-md border border-[#e8e8e4] bg-white px-3 py-1.5 h-9 text-sm text-left hover:border-[#d0ccc8] transition-colors"
+                  >
+                    <span className={categories.length > 0 ? "text-[#212120]" : "text-[#adadad]"}>
+                      {categories.length > 0
+                        ? categories.map((c) => CATEGORY_LABELS[c]).join(", ")
+                        : "Select categories"}
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-[#696b63] shrink-0" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width)">
+                  {SHOP_CATEGORIES.map((category) => (
+                    <DropdownMenuCheckboxItem
+                      key={category}
+                      checked={categories.includes(category)}
+                      onSelect={(e) => e.preventDefault()}
+                      onCheckedChange={() => toggleCategory(category)}
+                    >
+                      {CATEGORY_LABELS[category]}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             <div className="space-y-1.5">
@@ -733,6 +927,10 @@ function ShopDashboardContent({
     }
   }
 
+  function handleCategoriesAdded(categories: ShopCategory[]) {
+    onShopUpdate({ categories });
+  }
+
   const togglePreciseDate = (id: string) =>
     setPreciseDates((prev) => {
       const next = new Set(prev);
@@ -890,6 +1088,10 @@ function ShopDashboardContent({
                 <PlanChanger
                   currentPlan={shop.plan}
                   onPlanChanged={handlePlanChanged}
+                />
+                <CategoriesEditor
+                  currentCategories={shop.categories}
+                  onCategoriesAdded={handleCategoriesAdded}
                 />
               </div>
             </div>
