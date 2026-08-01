@@ -3,8 +3,14 @@ import { Link } from "react-router";
 import { apiFetch, getAppVisitorStats, AppVisitorStats } from "../lib/api";
 import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, AreaChart, Area,
+  ResponsiveContainer, AreaChart, Area, PieChart, Pie,
 } from "recharts";
+import {
+  SHOP_CATEGORIES,
+  CATEGORY_LABELS as SHOP_CATEGORY_LABELS,
+  CATEGORY_COLORS as SHOP_CATEGORY_COLORS,
+  type ShopCategory,
+} from "../lib/categories";
 import {
   MessageSquare, Store, Tag, Clock, RefreshCw,
   TrendingUp, ArrowLeft, Inbox, Activity, Eye, EyeOff,
@@ -31,6 +37,7 @@ interface AdminShop extends Shop {
   is_public: boolean;
   created_at: string;
   feedbackCount: number;
+  categories: ShopCategory[];
 }
 
 interface Feedback {
@@ -714,6 +721,7 @@ function ShopsTab({
   onVisibilityChange: (id: number, isPublic: boolean) => void;
 }) {
   const [updating, setUpdating] = useState<Set<number>>(new Set());
+  const [categoryFilter, setCategoryFilter] = useState<"all" | ShopCategory | "none">("all");
 
   async function handleToggle(id: number, nextIsPublic: boolean) {
     setUpdating((prev) => new Set(prev).add(id));
@@ -729,6 +737,35 @@ function ShopsTab({
       setUpdating((prev) => { const next = new Set(prev); next.delete(id); return next; });
     }
   }
+
+  // Counts (and the pie chart built from them) always reflect every shop,
+  // regardless of the active filter — only the table below is filtered —
+  // so the breakdown stays stable as a reference while browsing.
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { none: 0 };
+    SHOP_CATEGORIES.forEach((c) => { counts[c] = 0; });
+    shops.forEach((s) => {
+      if (s.categories.length === 0) { counts.none += 1; return; }
+      s.categories.forEach((c) => { counts[c] = (counts[c] ?? 0) + 1; });
+    });
+    return counts;
+  }, [shops]);
+
+  const donutData = useMemo(() => {
+    const entries: { key: ShopCategory | "none"; name: string; value: number; fill: string }[] = [
+      ...SHOP_CATEGORIES.map((c) => ({
+        key: c, name: SHOP_CATEGORY_LABELS[c], value: categoryCounts[c] ?? 0, fill: SHOP_CATEGORY_COLORS[c],
+      })),
+      { key: "none", name: "Uncategorized", value: categoryCounts.none, fill: "#c9c4bd" },
+    ];
+    return entries.filter((d) => d.value > 0);
+  }, [categoryCounts]);
+
+  const filteredShops = useMemo(() => {
+    if (categoryFilter === "all") return shops;
+    if (categoryFilter === "none") return shops.filter((s) => s.categories.length === 0);
+    return shops.filter((s) => s.categories.includes(categoryFilter));
+  }, [shops, categoryFilter]);
 
   if (loading) {
     return (
@@ -761,16 +798,81 @@ function ShopsTab({
         <KpiCard icon={<EyeOff className="w-5 h-5 text-[#c0392b]" />} iconBg="bg-[#fff0f0]" label="Hidden" value={hiddenCount} sub="Hidden from listings" />
       </div>
 
+      {/* Category breakdown — the legend rows double as the filter for the table below */}
+      <div className="bg-white border border-[#e8e8e4] rounded-[24px] p-6">
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="bg-[#fef7f2] rounded-[10px] p-2"><Tag className="w-4 h-4 text-[#ac7f5e]" /></div>
+          <h2 className="text-[#212120] text-sm font-medium">Shops by Category</h2>
+        </div>
+
+        {donutData.length === 0 ? (
+          <div className="h-[120px] flex items-center justify-center text-[#adadad] text-sm">No shops yet</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={donutData} cx="50%" cy="50%" innerRadius={56} outerRadius={80} paddingAngle={3} dataKey="value" startAngle={90} endAngle={-270}>
+                    {donutData.map((entry, i) => <Cell key={i} fill={entry.fill} strokeWidth={0} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e8e8e4", borderRadius: 12, fontSize: 12 }} formatter={(v) => [v, "shops"]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-2xl font-light text-[#212120]">{shops.length}</span>
+                <span className="text-[10px] text-[#adadad] uppercase tracking-wide">total</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <button
+                onClick={() => setCategoryFilter("all")}
+                className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-left transition-colors ${
+                  categoryFilter === "all" ? "bg-[#f5f4f3] ring-1 ring-[#212120]/10" : "hover:bg-[#f9f8f7]"
+                }`}
+              >
+                <span className="text-[#212120] text-sm font-medium">All</span>
+                <span className="text-[#696b63] text-xs">{shops.length}</span>
+              </button>
+              {donutData.map((d) => (
+                <button
+                  key={d.key}
+                  onClick={() => setCategoryFilter((prev) => (prev === d.key ? "all" : d.key))}
+                  className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-left transition-colors ${
+                    categoryFilter === d.key ? "bg-[#f5f4f3] ring-1 ring-[#212120]/10" : "hover:bg-[#f9f8f7]"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.fill }} />
+                    <span className="text-[#212120] text-sm">{d.name}</span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-[#212120] text-xs font-medium">{d.value}</span>
+                    <span className="text-[#adadad] text-[10px]">
+                      {shops.length > 0 ? Math.round((d.value / shops.length) * 100) : 0}%
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Shops table */}
       <div className="bg-white border border-[#e8e8e4] rounded-[24px] overflow-hidden">
         <div className="px-6 py-5 border-b border-[#f0ede8] flex items-center gap-2.5">
           <div className="bg-[#fef7f2] rounded-[10px] p-2"><Store className="w-4 h-4 text-[#ac7f5e]" /></div>
-          <h2 className="text-[#212120] text-sm font-medium">All Shops</h2>
-          <span className="ml-auto text-[#adadad] text-xs">{shops.length} shop{shops.length === 1 ? "" : "s"}</span>
+          <h2 className="text-[#212120] text-sm font-medium">
+            {categoryFilter === "all" ? "All Shops" : categoryFilter === "none" ? "Uncategorized Shops" : `${SHOP_CATEGORY_LABELS[categoryFilter]} Shops`}
+          </h2>
+          <span className="ml-auto text-[#adadad] text-xs">{filteredShops.length} shop{filteredShops.length === 1 ? "" : "s"}</span>
         </div>
 
-        {shops.length === 0 ? (
-          <div className="py-20 text-center text-[#adadad] text-sm">No shops yet.</div>
+        {filteredShops.length === 0 ? (
+          <div className="py-20 text-center text-[#adadad] text-sm">
+            {shops.length === 0 ? "No shops yet." : "No shops match this filter."}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -782,10 +884,10 @@ function ShopsTab({
                 </tr>
               </thead>
               <tbody>
-                {shops.map((shop, i) => {
+                {filteredShops.map((shop, i) => {
                   const isSaving = updating.has(shop.id);
                   return (
-                    <tr key={shop.id} className={`hover:bg-[#faf8f6] transition-colors ${i < shops.length - 1 ? "border-b border-[#f8f6f3]" : ""}`}>
+                    <tr key={shop.id} className={`hover:bg-[#faf8f6] transition-colors ${i < filteredShops.length - 1 ? "border-b border-[#f8f6f3]" : ""}`}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-[#212120] text-sm font-medium">{shop.name}</span>
                       </td>
