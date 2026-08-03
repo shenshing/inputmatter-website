@@ -5,6 +5,7 @@ import { useTelegram } from "../hooks/useTelegram";
 import { usePublicFeedback } from "../hooks/usePublicFeedback";
 import StarRating from "./StarRating";
 import PhotoUpload from "./PhotoUpload";
+import VoiceInput from "./VoiceInput";
 import PublicFeedbackList from "./PublicFeedbackList";
 import shopAltImage from "../../assets/shop-alt.png";
 
@@ -182,6 +183,13 @@ export default function FeedbackForm() {
     shop.name.toLowerCase().includes(shopInput.toLowerCase()),
   );
 
+  const handleVoiceTranscript = (text: string) => {
+    setDescription((prev) => {
+      const combined = prev.trim() ? `${prev.trim()} ${text}` : text;
+      return combined.slice(0, 500);
+    });
+  };
+
   const handleShopSelect = (shop: Shop) => {
     setSelectedShop(shop);
     setShopInput("");
@@ -332,8 +340,11 @@ export default function FeedbackForm() {
                   className="w-full bg-transparent border-none outline-none resize-none font-normal text-[#212120] placeholder:text-[#adadad] text-sm md:text-base min-h-[60px] md:min-h-[84px]"
                   maxLength={500}
                 />
-                <div className="text-right text-[11px] md:text-xs text-[#7e7f78] mt-1">
-                  {description.length}/500
+                <div className="flex items-center justify-between gap-2 mt-1">
+                  <VoiceInput onTranscript={handleVoiceTranscript} />
+                  <div className="flex-none text-[11px] md:text-xs text-[#7e7f78]">
+                    {description.length}/500
+                  </div>
                 </div>
               </div>
               <div className="flex-none w-[92px] md:w-[140px] bg-white border border-[#f1e7d9] rounded-[18px] md:rounded-[22px] p-2.5 md:p-3.5 flex flex-col items-center justify-center gap-1.5 md:gap-2">
