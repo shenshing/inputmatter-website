@@ -13,7 +13,7 @@ import {
 } from "../lib/categories";
 import {
   MessageSquare, Store, Tag, Clock, RefreshCw,
-  TrendingUp, ArrowLeft, Inbox, Activity, Eye, EyeOff,
+  TrendingUp, ArrowLeft, Inbox, Activity, Eye, EyeOff, Mic,
 } from "lucide-react";
 import {
   format, subWeeks, startOfWeek, endOfWeek,
@@ -165,6 +165,8 @@ export default function Dashboard() {
   const [visitorsError, setVisitorsError] = useState<string | null>(null);
   const [visitorsFetched, setVisitorsFetched] = useState(false);
   const [visitorPeriod, setVisitorPeriod] = useState('30d');
+  const [voiceClickTotal, setVoiceClickTotal] = useState<number | null>(null);
+  const [voiceRecordingTotal, setVoiceRecordingTotal] = useState<number | null>(null);
 
   const togglePreciseDate = (id: string) =>
     setPreciseDates((prev) => {
@@ -214,8 +216,14 @@ export default function Dashboard() {
     setVisitorsLoading(true);
     setVisitorsError(null);
     try {
-      const data = await getAppVisitorStats('telegram', period);
-      setVisitorStats(data);
+      const [telegramData, voiceClickData, voiceRecordingData] = await Promise.all([
+        getAppVisitorStats('telegram', period),
+        getAppVisitorStats('voice-click', period),
+        getAppVisitorStats('voice-recording-started', period),
+      ]);
+      setVisitorStats(telegramData);
+      setVoiceClickTotal(voiceClickData.total);
+      setVoiceRecordingTotal(voiceRecordingData.total);
       setVisitorsFetched(true);
     } catch (err) {
       setVisitorsError(err instanceof Error ? err.message : "Failed to load visitor stats.");
@@ -475,6 +483,8 @@ export default function Dashboard() {
           loading={visitorsLoading}
           error={visitorsError}
           stats={visitorStats}
+          voiceClickTotal={voiceClickTotal}
+          voiceRecordingTotal={voiceRecordingTotal}
           onRetry={() => fetchVisitors(visitorPeriod)}
           period={visitorPeriod}
           onPeriodChange={handleVisitorPeriodChange}
@@ -1123,10 +1133,12 @@ function formatBucket(bucket: string, granularity: 'hour' | 'day', period: strin
   }
 }
 
-function VisitorsTab({ loading, error, stats, onRetry, period, onPeriodChange }: {
+function VisitorsTab({ loading, error, stats, voiceClickTotal, voiceRecordingTotal, onRetry, period, onPeriodChange }: {
   loading: boolean;
   error: string | null;
   stats: AppVisitorStats | null;
+  voiceClickTotal: number | null;
+  voiceRecordingTotal: number | null;
   onRetry: () => void;
   period: string;
   onPeriodChange: (p: string) => void;
@@ -1148,6 +1160,18 @@ function VisitorsTab({ loading, error, stats, onRetry, period, onPeriodChange }:
           iconBg="bg-[#fef3ec]"
           label="Total Telegram Visitors"
           value={stats?.total ?? '—'}
+        />
+        <KpiCard
+          icon={<Mic className="w-4 h-4 text-[#b1603a]" />}
+          iconBg="bg-[#fef7f2]"
+          label="Voice Input Clicked"
+          value={voiceClickTotal ?? '—'}
+        />
+        <KpiCard
+          icon={<Mic className="w-4 h-4 text-[#4f6fbd]" />}
+          iconBg="bg-[#f0f4ff]"
+          label="Voice Recordings Started"
+          value={voiceRecordingTotal ?? '—'}
         />
       </div>
 
