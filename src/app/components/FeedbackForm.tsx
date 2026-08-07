@@ -84,12 +84,17 @@ export default function FeedbackForm() {
   }, [isShopCardFlipped]);
 
   useEffect(() => {
+    // isTelegram depends on Telegram's WebApp script having loaded, which
+    // can lag the first render — this re-checks on every render (the
+    // dependency array catches the false→true transition) rather than
+    // only at mount, so a plain website visit never gets logged as one.
+    if (!isTelegram) return;
     fetch(`${API_URL}/app-visitors`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'telegram' }),
     }).catch(() => {});
-  }, []);
+  }, [isTelegram]);
 
   useEffect(() => {
     fetch(`${API_URL}/shops`)

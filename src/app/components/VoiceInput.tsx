@@ -23,6 +23,17 @@ function extensionFor(mimeType: string): string {
   return "webm";
 }
 
+// Fire-and-forget usage tracking, same pattern as the 'telegram' visit log
+// in FeedbackForm.tsx — reuses the existing app_visitors table/dashboard,
+// just with different `type` values.
+function logVoiceEvent(type: string) {
+  fetch(`${API_URL}/app-visitors`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type }),
+  }).catch(() => {});
+}
+
 export default function VoiceInput({ onTranscript }: VoiceInputProps) {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -78,8 +89,10 @@ export default function VoiceInput({ onTranscript }: VoiceInputProps) {
 
   const startRecording = async () => {
     setError(null);
+    logVoiceEvent("voice-click");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      logVoiceEvent("voice-recording-started");
       const mimeType = pickMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = recorder;
