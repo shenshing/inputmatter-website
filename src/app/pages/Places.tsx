@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { apiFetch } from "../lib/api";
@@ -7,6 +7,13 @@ import SiteFooter from "../components/SiteFooter";
 import ShopCard, { type Shop } from "../components/ShopCard";
 
 const PAGE_SIZE = 16;
+
+// Mirrors SHOP_CATEGORIES in api/src/shop/shop.entity.ts — keep in sync if that list changes.
+const CATEGORY_FILTERS: { value: string; label: string }[] = [
+  { value: "cafe", label: "Cafe" },
+  { value: "restaurant", label: "Restaurant" },
+  { value: "hotpot", label: "Hotpot" },
+];
 
 // Collapses a long page range to first/last + a window around the current
 // page, e.g. [1, 2, "…", 4, 5, 6, "…", 9, 10] instead of every page.
@@ -27,7 +34,39 @@ function getPageNumbers(current: number, total: number): (number | "…")[] {
 export default function Places() {
   const [shops, setShops] = useState<Shop[]>([]);
   const [query, setQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+
+  // Desktop mouse users get no swipe affordance, so the scroll row also gets
+  // hover-visible arrow buttons (Airbnb/YouTube pattern) — mobile relies on touch
+  // scroll alone. Tracks whether there's more to scroll in each direction so the
+  // arrows/fades only render when they'd actually do something.
+  const categoryScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateCategoryScrollState = useCallback(() => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    updateCategoryScrollState();
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateCategoryScrollState, { passive: true });
+    window.addEventListener("resize", updateCategoryScrollState);
+    return () => {
+      el.removeEventListener("scroll", updateCategoryScrollState);
+      window.removeEventListener("resize", updateCategoryScrollState);
+    };
+  }, [updateCategoryScrollState]);
+
+  const scrollCategoriesBy = (direction: 1 | -1) => {
+    categoryScrollRef.current?.scrollBy({ left: direction * 220, behavior: "smooth" });
+  };
 
   useEffect(() => {
     apiFetch<Shop[]>("/shops")
@@ -36,14 +75,19 @@ export default function Places() {
   }, []);
 
   const filteredShops = useMemo(
-    () => shops.filter((shop) => shop.name.toLowerCase().includes(query.trim().toLowerCase())),
-    [shops, query],
+    () =>
+      shops.filter((shop) => {
+        const matchesQuery = shop.name.toLowerCase().includes(query.trim().toLowerCase());
+        const matchesCategory = !activeCategory || shop.categories?.includes(activeCategory);
+        return matchesQuery && matchesCategory;
+      }),
+    [shops, query, activeCategory],
   );
 
-  // Jump back to page 1 whenever the search narrows/changes the result set.
+  // Jump back to page 1 whenever the search or category filter narrows/changes the result set.
   useEffect(() => {
     setPage(1);
-  }, [query]);
+  }, [query, activeCategory]);
 
   const totalPages = Math.max(1, Math.ceil(filteredShops.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -84,6 +128,75 @@ export default function Places() {
             placeholder="Search places…"
             className="w-full bg-transparent border-none outline-none text-[14.5px] text-[#2c2622] placeholder:text-[#9a8c7c] min-w-0"
           />
+        </div>
+      </div>
+
+      {/* Category filter — single-row horizontal scroll (never wraps), so it stays
+          tidy no matter how many categories exist. Touch/mobile: swipe + scroll-snap,
+          same as Airbnb/Spotify/ASOS. Desktop: mouse users get no swipe affordance, so
+          hover-visible left/right arrow buttons scroll the same row (Airbnb/YouTube
+          pattern) — sm:+ only, since touch already handles it on mobile. Fades and
+          arrows only render when there's actually more to scroll in that direction. */}
+      <div className="max-w-[1120px] mx-auto w-full px-4 sm:px-5 md:px-10 pt-3 pb-2">
+        <div className="relative group/scroller">
+          <div
+            ref={categoryScrollRef}
+            className="flex gap-2 overflow-x-auto snap-x snap-proximity pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            <button
+              type="button"
+              onClick={() => setActiveCategory(null)}
+              className={
+                activeCategory === null
+                  ? "shrink-0 snap-start text-xs font-semibold rounded-full px-3.5 py-1.5 bg-[#2c2622] text-white transition-colors"
+                  : "shrink-0 snap-start text-xs font-semibold rounded-full px-3.5 py-1.5 bg-white border border-[#f1e7d9] text-[#6f6256] hover:border-[#d9764a] transition-colors"
+              }
+            >
+              All
+            </button>
+            {CATEGORY_FILTERS.map((cat) => (
+              <button
+                key={cat.value}
+                type="button"
+                onClick={() => setActiveCategory(cat.value)}
+                className={
+                  activeCategory === cat.value
+                    ? "shrink-0 snap-start text-xs font-semibold rounded-full px-3.5 py-1.5 bg-[#2c2622] text-white transition-colors"
+                    : "shrink-0 snap-start text-xs font-semibold rounded-full px-3.5 py-1.5 bg-white border border-[#f1e7d9] text-[#6f6256] hover:border-[#d9764a] transition-colors"
+                }
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          {canScrollLeft && (
+            <>
+              <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-[#fdf8f2] to-transparent" />
+              <button
+                type="button"
+                onClick={() => scrollCategoriesBy(-1)}
+                aria-label="Scroll categories left"
+                className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white border border-[#f1e7d9] shadow-sm items-center justify-center text-[#6f6256] opacity-0 group-hover/scroller:opacity-100 hover:text-[#2c2622] hover:shadow-md transition-all"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </>
+          )}
+
+          {canScrollRight && (
+            <>
+              <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-[#fdf8f2] to-transparent" />
+              <button
+                type="button"
+                onClick={() => scrollCategoriesBy(1)}
+                aria-label="Scroll categories right"
+                className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white border border-[#f1e7d9] shadow-sm items-center justify-center text-[#6f6256] opacity-0 group-hover/scroller:opacity-100 hover:text-[#2c2622] hover:shadow-md transition-all"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -141,6 +254,17 @@ export default function Places() {
               </div>
             )}
           </>
+        ) : shops.length > 0 && !query.trim() ? (
+          <div className="border border-dashed border-[#e7dccd] rounded-2xl px-6 py-14 text-center">
+            <p className="text-sm text-[#9a8c7c] mb-4">No places in this category yet.</p>
+            <button
+              type="button"
+              onClick={() => setActiveCategory(null)}
+              className="text-sm font-semibold text-[#b1603a] hover:text-[#2c2622] transition-colors"
+            >
+              Clear filter
+            </button>
+          </div>
         ) : shops.length > 0 ? (
           <div className="border border-dashed border-[#e7dccd] rounded-2xl px-6 py-14 text-center">
             <p className="text-sm text-[#9a8c7c] mb-2">No places match "{query.trim()}".</p>

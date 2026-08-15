@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router";
-import { Store, MapPin } from "lucide-react";
+import { Store, ChevronDown } from "lucide-react";
 import { useTelegram } from "../hooks/useTelegram";
 import { usePublicFeedback } from "../hooks/usePublicFeedback";
 import StarRating from "./StarRating";
 import PhotoUpload from "./PhotoUpload";
 import VoiceInput from "./VoiceInput";
 import PublicFeedbackList from "./PublicFeedbackList";
+import ShopInfoPanel from "./ShopInfoPanel";
 import shopAltImage from "../../assets/shop-alt.png";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
@@ -26,10 +27,13 @@ interface Shop {
   // raw google_map_url short link directly, it's unreliable in some
   // browsers (see shop.entity.ts on the backend for why).
   google_map_long_url: string | null;
+  phone: string | null;
+  categories?: string[];
+  opening_hours?: {
+    status: string | null;
+    schedule: { day: string; hours: string }[] | null;
+  } | null;
 }
-
-// Auto flip a flipped shop card back to its logo after this long.
-const FLIP_BACK_DELAY_MS = 5000;
 
 export default function FeedbackForm() {
   const [searchParams] = useSearchParams();
@@ -51,7 +55,7 @@ export default function FeedbackForm() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [mobileTab, setMobileTab] = useState<"feedback" | "feed">("feedback");
   const [feedRefreshKey, setFeedRefreshKey] = useState(0);
-  const [isShopCardFlipped, setIsShopCardFlipped] = useState(false);
+  const [isShopInfoExpanded, setIsShopInfoExpanded] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const handleSubmitRef = useRef<() => void>(() => {});
 
@@ -70,18 +74,10 @@ export default function FeedbackForm() {
     feedScrollRef.current?.scrollTo({ top: 0 });
   }, [feedPage]);
 
-  // Reset to the logo face whenever the selected shop changes.
+  // Collapse the shop info panel whenever the selected shop changes.
   useEffect(() => {
-    setIsShopCardFlipped(false);
+    setIsShopInfoExpanded(false);
   }, [selectedShop?.id]);
-
-  // Clicking the logo flips to the links face; it only ever flips back on
-  // its own after a few seconds — there's no click-to-flip-back.
-  useEffect(() => {
-    if (!isShopCardFlipped) return;
-    const timer = setTimeout(() => setIsShopCardFlipped(false), FLIP_BACK_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [isShopCardFlipped]);
 
   useEffect(() => {
     // isTelegram depends on Telegram's WebApp script having loaded, which
@@ -337,12 +333,12 @@ export default function FeedbackForm() {
 
             {/* Description + shop logo */}
             <div className="flex gap-2.5 md:gap-4 items-stretch">
-              <div className="flex-1 min-w-0 bg-white border border-[#f1e7d9] rounded-[18px] md:rounded-[22px] p-4 md:px-5 md:py-[18px] relative">
+              <div className="flex-1 min-w-0 bg-white border border-[#f1e7d9] rounded-[18px] md:rounded-[22px] p-4 md:px-5 md:py-[18px] relative flex flex-col">
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Describe your feeling..."
-                  className="w-full bg-transparent border-none outline-none resize-none font-normal text-[#212120] placeholder:text-[#adadad] text-sm md:text-base min-h-[60px] md:min-h-[84px]"
+                  className="w-full flex-1 bg-transparent border-none outline-none resize-none font-normal text-[#212120] placeholder:text-[#adadad] text-sm md:text-base min-h-[60px] md:min-h-[84px]"
                   maxLength={500}
                 />
                 <div className="flex items-center justify-between gap-2 mt-1">
@@ -352,53 +348,14 @@ export default function FeedbackForm() {
                   </div>
                 </div>
               </div>
-              <div className="flex-none w-[92px] md:w-[140px] bg-white border border-[#f1e7d9] rounded-[18px] md:rounded-[22px] p-2.5 md:p-3.5 flex flex-col items-center justify-center gap-1.5 md:gap-2">
+              <div className="flex-none w-[92px] md:w-[140px] bg-white border border-[#f1e7d9] rounded-[18px] md:rounded-[22px] p-2.5 md:p-3.5 flex flex-col items-center justify-center gap-1 md:gap-1.5">
                 {selectedShop ? (
-                  <div className="relative w-full aspect-square [perspective:900px]">
-                    <div
-                      className="relative w-full h-full [transform-style:preserve-3d] transition-transform duration-500 ease-in-out"
-                      style={{ transform: isShopCardFlipped ? "rotateY(180deg)" : "rotateY(0deg)" }}
-                    >
-                      {/* Front — logo, click to reveal links */}
-                      <button
-                        type="button"
-                        onClick={() => setIsShopCardFlipped(true)}
-                        aria-label={`Show links for ${selectedShop.name}`}
-                        style={{ pointerEvents: isShopCardFlipped ? "none" : "auto" }}
-                        className="absolute inset-0 w-full h-full [backface-visibility:hidden] rounded-xl md:rounded-2xl overflow-hidden cursor-pointer"
-                      >
-                        <img
-                          src={selectedShop.logo_url ?? shopAltImage}
-                          alt={selectedShop.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-
-                      {/* Back — Google Maps */}
-                      <div
-                        style={{
-                          transform: "rotateY(180deg)",
-                          pointerEvents: isShopCardFlipped ? "auto" : "none",
-                        }}
-                        className="absolute inset-0 w-full h-full [backface-visibility:hidden] rounded-xl md:rounded-2xl bg-[#fef7f2] border border-[#f1e7d9] flex items-stretch p-1 md:p-1.5"
-                      >
-                        {selectedShop.google_map_long_url ? (
-                          <a
-                            href={selectedShop.google_map_long_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="View on Google Maps"
-                            className="flex-1 flex items-center justify-center rounded-lg md:rounded-xl bg-white hover:bg-[#f6e7dc] active:scale-95 transition-all text-[#b1603a]"
-                          >
-                            <MapPin className="w-4 h-4 md:w-5 md:h-5" />
-                          </a>
-                        ) : (
-                          <div className="flex-1 flex items-center justify-center text-center text-[8.5px] md:text-[9.5px] text-[#c9b9a6] px-1 leading-tight">
-                            No links yet
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  <div className="w-full aspect-square rounded-xl md:rounded-2xl overflow-hidden">
+                    <img
+                      src={selectedShop.logo_url ?? shopAltImage}
+                      alt={selectedShop.name}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 ) : (
                   <div className="w-full aspect-square rounded-xl md:rounded-2xl border-2 border-dashed border-[#ece0d1] flex items-center justify-center text-[#c9b9a6]">
@@ -408,8 +365,39 @@ export default function FeedbackForm() {
                 <div className="hidden md:block text-[10.5px] text-[#9a8c7c] text-center leading-tight line-clamp-2">
                   {selectedShop ? selectedShop.name : "No shop selected"}
                 </div>
+
+                {selectedShop && (
+                  <button
+                    type="button"
+                    onClick={() => setIsShopInfoExpanded((v) => !v)}
+                    aria-expanded={isShopInfoExpanded}
+                    aria-label={isShopInfoExpanded ? "Hide shop info" : "Show shop info"}
+                    className={`-mt-1 p-0 flex items-center justify-center leading-none transition-colors duration-200 ${
+                      isShopInfoExpanded ? "text-[#d9764a]" : "text-[#b1603a] hover:text-[#d9764a]"
+                    }`}
+                  >
+                    <ChevronDown
+                      className={`w-3 h-3 md:w-3.5 md:h-3.5 transition-transform duration-300 ${
+                        isShopInfoExpanded ? "rotate-180" : "motion-safe:animate-[gentle-bounce_1.6s_ease-in-out_infinite]"
+                      }`}
+                    />
+                  </button>
+                )}
               </div>
             </div>
+
+            {/* Shop info — collapsible, expands only when the arrow under the logo is clicked */}
+            {selectedShop && (
+              <div
+                className={`grid transition-[grid-template-rows,margin-top] duration-300 ease-in-out ${
+                  isShopInfoExpanded ? "grid-rows-[1fr] mt-3.5 md:mt-4" : "grid-rows-[0fr] mt-0"
+                }`}
+              >
+                <div className="overflow-hidden">
+                  <ShopInfoPanel shop={selectedShop} />
+                </div>
+              </div>
+            )}
 
             {/* Category Tags */}
             <div className="mt-3.5 md:mt-4">
