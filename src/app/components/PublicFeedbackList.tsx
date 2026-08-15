@@ -55,7 +55,7 @@ function FeedCard({ item }: { item: PublicFeedbackItem }) {
       <ImageCarousel images={item.imageUrls} onImageClick={setLightboxIndex} />
       <div className="text-[10px] md:text-[11px] text-[#9a8c7c] mt-2">{formatRelativeTime(item.createdAt)}</div>
       {lightboxIndex != null && (
-        <ImageLightbox src={item.imageUrls[lightboxIndex]} onClose={() => setLightboxIndex(null)} />
+        <ImageLightbox images={item.imageUrls} initialIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
       )}
     </div>
   );

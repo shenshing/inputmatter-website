@@ -13,7 +13,7 @@ import {
 } from "../lib/categories";
 import {
   MessageSquare, Store, Tag, Clock, RefreshCw,
-  TrendingUp, ArrowLeft, Inbox, Activity, Eye, EyeOff, Mic,
+  TrendingUp, ArrowLeft, Inbox, Activity, Eye, EyeOff, Mic, Search, X,
 } from "lucide-react";
 import {
   format, subWeeks, startOfWeek, endOfWeek,
@@ -149,6 +149,9 @@ export default function Dashboard() {
   const [shops, setShops] = useState<AdminShop[]>([]);
   const [selectedShopId, setSelectedShopId] = useState<string>("all");
   const [selectedPeriod, setSelectedPeriod] = useState<Period>("30d");
+  // Free-text shop-name filter scoped to just the Recent Feedback table below —
+  // separate from the "All Shops" dropdown so searching doesn't reset the KPIs/charts.
+  const [feedbackShopQuery, setFeedbackShopQuery] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(true);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [preciseDates, setPreciseDates] = useState<Set<string>>(new Set());
@@ -245,17 +248,22 @@ export default function Dashboard() {
 
   // ── Feedback derived data ───────────────────────────────────────────────────
 
+  // Shop-dropdown filter only, no period cutoff — the Recent Feedback search box
+  // reuses this so a shop-name lookup isn't silently limited to the selected
+  // period (e.g. a shop whose only feedback is 6 months old would otherwise never
+  // turn up while "Last 30 days" is selected, with no indication why).
+  const filteredByShop = useMemo(() => {
+    return allFeedback.filter((f) => selectedShopId === "all" || String(f.shop?.id) === selectedShopId);
+  }, [allFeedback, selectedShopId]);
+
   const filtered = useMemo(() => {
     const cutoff = cutoffDate(selectedPeriod);
-    return allFeedback.filter((f) => {
-      if (selectedShopId !== "all" && String(f.shop?.id) !== selectedShopId) return false;
-      if (cutoff) {
-        try { return isAfter(parseISO(f.created_at), cutoff); }
-        catch { return false; }
-      }
-      return true;
+    if (!cutoff) return filteredByShop;
+    return filteredByShop.filter((f) => {
+      try { return isAfter(parseISO(f.created_at), cutoff); }
+      catch { return false; }
     });
-  }, [allFeedback, selectedShopId, selectedPeriod]);
+  }, [filteredByShop, selectedPeriod]);
 
   const totalCount = filtered.length;
   const telegramCount = filtered.filter((f) => f.source === "telegram").length;
@@ -300,11 +308,17 @@ export default function Dashboard() {
     });
   }, [filtered]);
 
-  const recentFeedback = useMemo(() =>
-    [...filtered]
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 20),
-  [filtered]);
+  // Sorted, unsliced pool behind the table — searching draws from filteredByShop
+  // (all time) instead of filtered (period-scoped), everything else unchanged.
+  const recentFeedbackPool = useMemo(() => {
+    const query = feedbackShopQuery.trim().toLowerCase();
+    const pool = query
+      ? filteredByShop.filter((f) => (f.shop?.name ?? f.shop_name ?? "").toLowerCase().includes(query))
+      : filtered;
+    return [...pool].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [filtered, filteredByShop, feedbackShopQuery]);
+
+  const recentFeedback = useMemo(() => recentFeedbackPool.slice(0, 20), [recentFeedbackPool]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -437,6 +451,9 @@ export default function Dashboard() {
           categoryData={categoryData}
           weeklyData={weeklyData}
           recentFeedback={recentFeedback}
+          recentFeedbackTotal={recentFeedbackPool.length}
+          shopQuery={feedbackShopQuery}
+          onShopQueryChange={setFeedbackShopQuery}
           preciseDates={preciseDates}
           togglePreciseDate={togglePreciseDate}
           onVisibilityChange={(id, isPublic) =>
@@ -498,7 +515,7 @@ export default function Dashboard() {
 
 function FeedbackTab({
   loading, error, onRetry, totalCount, telegramCount, selectedPeriod, activeShopsCount, totalShopsCount, topCategory,
-  latestFeedback, categoryData, weeklyData, recentFeedback, preciseDates, togglePreciseDate, onVisibilityChange,
+  latestFeedback, categoryData, weeklyData, recentFeedback, recentFeedbackTotal, shopQuery, onShopQueryChange, preciseDates, togglePreciseDate, onVisibilityChange,
 }: {
   loading: boolean;
   error: string | null;
@@ -513,6 +530,9 @@ function FeedbackTab({
   categoryData: { name: string; count: number; fill: string }[];
   weeklyData: { label: string; count: number }[];
   recentFeedback: Feedback[];
+  recentFeedbackTotal: number;
+  shopQuery: string;
+  onShopQueryChange: (query: string) => void;
   preciseDates: Set<string>;
   togglePreciseDate: (id: string) => void;
   onVisibilityChange: (id: string, isPublic: boolean) => void;
@@ -624,10 +644,34 @@ function FeedbackTab({
 
       {/* Recent Feedback Table */}
       <div className="bg-white border border-[#e8e8e4] rounded-[24px] overflow-hidden">
-        <div className="px-6 py-5 border-b border-[#f0ede8] flex items-center gap-2.5">
+        <div className="px-6 py-5 border-b border-[#f0ede8] flex items-center gap-2.5 flex-wrap">
           <div className="bg-[#fef7f2] rounded-[10px] p-2"><MessageSquare className="w-4 h-4 text-[#ac7f5e]" /></div>
           <h2 className="text-[#212120] text-sm font-medium">Recent Feedback</h2>
-          <span className="ml-auto text-[#adadad] text-xs">showing {recentFeedback.length} of {totalCount}</span>
+          <div className="relative ml-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#adadad] pointer-events-none" />
+            <input
+              type="text"
+              value={shopQuery}
+              onChange={(e) => onShopQueryChange(e.target.value)}
+              placeholder="Search by shop name…"
+              className="bg-[#efefef] rounded-[18px] pl-8 pr-8 py-2 text-[#212120] text-sm border-none outline-none w-[200px] focus:w-[240px] transition-all"
+            />
+            {shopQuery && (
+              <button
+                type="button"
+                onClick={() => onShopQueryChange("")}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#adadad] hover:text-[#696b63]"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <span className="text-[#adadad] text-xs whitespace-nowrap">
+            {shopQuery
+              ? `showing ${recentFeedback.length} of ${recentFeedbackTotal} match${recentFeedbackTotal === 1 ? "" : "es"} (all time)`
+              : `showing ${recentFeedback.length} of ${totalCount}`}
+          </span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -640,7 +684,11 @@ function FeedbackTab({
             </thead>
             <tbody>
               {recentFeedback.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-16 text-[#adadad] text-sm">No feedback found</td></tr>
+                <tr>
+                  <td colSpan={8} className="text-center py-16 text-[#adadad] text-sm">
+                    {shopQuery ? `No feedback found for "${shopQuery}"` : "No feedback found"}
+                  </td>
+                </tr>
               ) : (
                 recentFeedback.map((fb, i) => {
                 const isSavingVisibility = updatingVisibility.has(fb.id);

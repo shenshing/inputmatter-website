@@ -32,7 +32,7 @@ export default function FeedbackPhotosCell({ imageUrls }: FeedbackPhotosCellProp
           </button>
         ))}
       </div>
-      {openIndex != null && <ImageLightbox src={urls[openIndex]} onClose={() => setOpenIndex(null)} />}
+      {openIndex != null && <ImageLightbox images={urls} initialIndex={openIndex} onClose={() => setOpenIndex(null)} />}
     </>
   );
 }
