@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface ImageCarouselProps {
   images: string[];
@@ -24,7 +25,7 @@ export default function ImageCarousel({ images, onImageClick }: ImageCarouselPro
   };
 
   return (
-    <div className="relative w-full aspect-[4/3] mt-2.5 rounded-xl overflow-hidden">
+    <div className="relative w-full aspect-[4/3] mt-2.5 rounded-xl overflow-hidden group/carousel">
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -47,20 +48,46 @@ export default function ImageCarousel({ images, onImageClick }: ImageCarouselPro
           </button>
         ))}
       </div>
+
       {images.length > 1 && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/30 rounded-full px-2 py-1.5">
-          {images.map((_, i) => (
+        <>
+          {/* Desktop-only click targets — mobile already has swipe/scroll, which
+              stays untouched (these never render there, hidden below md). */}
+          {activeIndex > 0 && (
             <button
-              key={i}
               type="button"
-              onClick={() => scrollToIndex(i)}
-              aria-label={`Go to photo ${i + 1}`}
-              className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                i === activeIndex ? "bg-white" : "bg-white/50"
-              }`}
-            />
-          ))}
-        </div>
+              onClick={() => scrollToIndex(activeIndex - 1)}
+              aria-label="Previous photo"
+              className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 items-center justify-center text-[#2c2622] shadow-sm opacity-0 group-hover/carousel:opacity-100 hover:bg-white transition-all"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          )}
+          {activeIndex < images.length - 1 && (
+            <button
+              type="button"
+              onClick={() => scrollToIndex(activeIndex + 1)}
+              aria-label="Next photo"
+              className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 items-center justify-center text-[#2c2622] shadow-sm opacity-0 group-hover/carousel:opacity-100 hover:bg-white transition-all"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
+
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/30 rounded-full px-2 py-1.5">
+            {images.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => scrollToIndex(i)}
+                aria-label={`Go to photo ${i + 1}`}
+                className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                  i === activeIndex ? "bg-white" : "bg-white/50"
+                }`}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
