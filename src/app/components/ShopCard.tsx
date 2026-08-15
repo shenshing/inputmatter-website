@@ -5,6 +5,7 @@ export interface Shop {
   id: number;
   name: string;
   logo_url: string | null;
+  categories: string[];
 }
 
 export default function ShopCard({ shop, className = "" }: { shop: Shop; className?: string }) {

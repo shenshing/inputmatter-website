@@ -5,9 +5,10 @@ interface FeedbackPhotosCellProps {
   imageUrls: string[] | null;
 }
 
-// Compact thumbnail row for admin tables — up to 3 photos (the submission
-// cap), so there's never a "+N more" overflow case to design for. Click a
-// thumbnail to view it full-size in the same lightbox used on the public feed.
+// Compact thumbnail row for admin tables. The feedback form itself caps
+// uploads at 3, but imported feedback (e.g. from Google Maps) can carry more,
+// so this wraps rather than assuming a fixed count. Click a thumbnail to view
+// it full-size in the same lightbox used on the public feed.
 export default function FeedbackPhotosCell({ imageUrls }: FeedbackPhotosCellProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const urls = imageUrls ?? [];
@@ -18,7 +19,7 @@ export default function FeedbackPhotosCell({ imageUrls }: FeedbackPhotosCellProp
 
   return (
     <>
-      <div className="flex gap-1">
+      <div className="flex flex-wrap gap-1">
         {urls.map((url, i) => (
           <button
             key={url}
