@@ -13,6 +13,15 @@ const CATEGORY_FILTERS: { value: string; label: string }[] = [
   { value: "cafe", label: "Cafe" },
   { value: "restaurant", label: "Restaurant" },
   { value: "hotpot", label: "Hotpot" },
+  { value: "korean", label: "Korean" },
+  { value: "chinese", label: "Chinese" },
+  { value: "japanese", label: "Japanese" },
+  { value: "khmer", label: "Khmer" },
+  { value: "seafood", label: "Seafood" },
+  { value: "bbq", label: "BBQ" },
+  { value: "steakhouse", label: "Steakhouse" },
+  { value: "fine_dining", label: "Fine Dining" },
+  { value: "fast_food", label: "Fast Food" },
 ];
 
 // Collapses a long page range to first/last + a window around the current
