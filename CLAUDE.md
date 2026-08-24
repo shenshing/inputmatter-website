@@ -33,3 +33,26 @@ Being an SVG, it scales to any size with no quality loss — just change the `si
   <img src={shop.logo_url ?? shopAltImage} alt={shop.name} className="w-full h-full object-cover" />
   ```
   See `ShopCard` in `src/app/pages/Welcome.tsx` for a working example of this pattern.
+
+### Sizing a shop logo (`logo_url`)
+
+A shop's `logo_url` renders in two places with *different box shapes*, both via `object-cover`:
+
+- `ShopCard` (`src/app/components/ShopCard.tsx`) — a **wide rectangle** (`h-28`/`h-[148px]` against a grid column; worst case is mobile's 2-column grid, roughly 1.7:1 wide).
+- `FeedbackForm`'s selected-shop box (`src/app/components/FeedbackForm.tsx`) — a **perfect square** (`aspect-square`).
+
+Since it's the same source image cropped two different ways, `object-cover` will crop off the top and bottom of the image in the wide `ShopCard` box — on mobile, only the **center ~58%** of the image's height survives. If the logo's actual content (wordmark, text, illustration) fills its frame edge-to-edge, that content gets cut off in the grid view even though the same image looks perfect in the square form view.
+
+**Fix at source, not in CSS**: before uploading a logo, pad it so the real content occupies at most **~54% of a square canvas**, centered, with the rest filled by the logo's own background color (sample a corner pixel — don't just use white, or a dark logo gets an ugly mismatched border) or true transparency if the source has real alpha. A solid-color badge with centered text (nothing near the top/bottom edges) already survives this without any work; anything edge-to-edge does not.
+
+```python
+# Pillow recipe used for the restaurant-logo batch (2026-08-21):
+# 1. Detect background: sample corner pixels, or use transparent if the
+#    source has real alpha (alpha.getextrema()[0] < 250).
+# 2. Scale the WHOLE image (preserving its own aspect ratio) so its longer
+#    side = TARGET * 0.54 (e.g. 400 * 0.54 = 216px).
+# 3. Paste it centered on a TARGET x TARGET canvas filled with that
+#    background color/transparency.
+```
+
+Verify by simulating the worst-case crop before uploading (crop the center `round(canvas_height * 0.5865)` px and eyeball it) rather than assuming the padding is enough — some logos (e.g. tall/narrow wordmarks) need more margin than others.
